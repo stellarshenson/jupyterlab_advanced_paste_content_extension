@@ -1,0 +1,7 @@
+{
+  "ServerApp": {
+    "jpserver_extensions": {
+      "jupyterlab_advanced_paste_content_extension": true
+    }
+  }
+}
