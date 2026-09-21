@@ -202,3 +202,10 @@ The Makefile, the GitHub workflows and the published artefacts
   - root-cause: 2026-09-20T18:16:12Z @kj tsconfig.json has no skipLibCheck, so tsc type-checks every reachable .d.ts in node_modules; the sibling jupyterlab_paste_content_as_markdown_extension carries the same dependency set and sets skipLibCheck true
   - log: 2026-09-20T18:16:12Z @kj added
   - log: 2026-09-20T18:17:31Z @kj closed: skipLibCheck enabled, matching the sibling extension with the same dependency set
+- [x] `DEF-BUILD-28` **Check Links job fails on the downloads badge** - MEDIUM; the Check Links job of the Build workflow fails with 404 on https://pepy.tech/project/jupyterlab-advanced-paste-content-extension and https://static.pepy.tech/badge/jupyterlab-advanced-paste-content-extension; pepy serves download counts for a PyPI package, and this package has never been published, so both the badge image and its link are 404 until the first release
+  - evidence: Build run 35566936067 on commit c1a3f05: the Check Links job returned success, and all jobs of that push are green - build, test_isolated, Integration tests, Check Links and Check Release. Verified independently by curl over every README URL: only the two pepy.tech URLs return 404, every other link returns 200
+  - repro: push any commit to main; Build run 35566530469 job "Check Links" exits 1 with "2 failed, 12 deselected" and "RuntimeError: Encountered failures in 1 file(s)"
+  - test-tags: E2E
+  - root-cause: 2026-09-21T06:04:57Z @kj the badge template in ~/.claude/references/github-badges.md carries a pepy downloads badge whose URL only resolves after the first PyPI release; the same reference states the remedy, and both sibling extensions already carry it - ignore_links on the check-links action
+  - log: 2026-09-21T06:04:57Z @kj added
+  - log: 2026-09-21T06:29:38Z @kj closed

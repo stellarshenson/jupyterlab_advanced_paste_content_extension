@@ -26,6 +26,8 @@ becomes a copy in the current folder. Text stays text.
   a code cell so it drops into `plt.imread()`, the bare name in a text file or a terminal
 - **Rich HTML becomes markdown** - only on the two surfaces that render it; a text file, a code cell
   and a terminal take the plain-text flavour, which is what a normal paste already gives them
+- **A terminal gets the shell's own folder** - the file lands in the directory the shell is actually
+  in, read from the shell process by the server, not beside the document last opened
 - **Nothing is written twice** - an identical payload references the file already in the folder, and
   a name clash never overwrites
 - **Server-side write** - the file is created through a Jupyter server endpoint, so it lands in the
