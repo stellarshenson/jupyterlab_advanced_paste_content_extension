@@ -14,6 +14,6 @@ project_short_description: Jupyterlab extension that captures pasted content (te
     in the receiving end (txt file, md file, python file or terminal). Extension will
     use different handlers to dedice how to handle the content
 python_name: jupyterlab_advanced_paste_content_extension
-repository: no repository
+repository: https://github.com/stellarshenson/jupyterlab_advanced_paste_content_extension
 test: true
 

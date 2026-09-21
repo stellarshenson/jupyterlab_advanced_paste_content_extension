@@ -49,3 +49,39 @@ export async function requestAPI<T>(
 
   return data;
 }
+
+/**
+ * What the server did with a payload: the name it landed under, and whether an
+ * identical file was already there.
+ */
+export interface IWriteResult {
+  filename: string;
+  reused: boolean;
+}
+
+/**
+ * Write a payload into a folder on the server.
+ *
+ * The server writes into the Jupyter workspace, which the browser cannot reach
+ * directly. It returns the name of an existing byte-identical file instead of
+ * writing a second copy.
+ */
+export async function writeFile(
+  serverSettings: ServerConnection.ISettings,
+  folder: string,
+  filename: string,
+  contentBase64: string,
+  terminal?: string
+): Promise<IWriteResult> {
+  return requestAPI<IWriteResult>('write', serverSettings, {
+    method: 'POST',
+    body: JSON.stringify({
+      folder,
+      filename,
+      content_base64: contentBase64,
+      // Naming the terminal lets the server resolve the shell's own working
+      // directory, which the frontend has no way to read.
+      ...(terminal ? { terminal } : {})
+    })
+  });
+}

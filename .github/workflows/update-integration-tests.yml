@@ -11,10 +11,19 @@ permissions:
 jobs:
   update-snapshots:
     runs-on: ubuntu-latest
-    if: github.event.issue.pull_request && contains(github.event.comment.body, 'please update snapshots')
+    # The author_association gate is load-bearing: issue_comment runs from the
+    # default branch with a contents: write token, and this job checks out and
+    # executes the pull request's own build script. Without it any GitHub user
+    # can run code in this repository by commenting the trigger phrase.
+    if: >-
+      github.event.issue.pull_request
+      && contains(github.event.comment.body, 'please update snapshots')
+      && (github.event.comment.author_association == 'OWNER'
+          || github.event.comment.author_association == 'MEMBER'
+          || github.event.comment.author_association == 'COLLABORATOR')
 
     steps:
-      - uses: jupyterlab/maintainer-tools/.github/actions/update-snapshots-checkout@main
+      - uses: jupyterlab/maintainer-tools/.github/actions/update-snapshots-checkout@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 

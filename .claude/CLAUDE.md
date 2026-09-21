@@ -30,11 +30,14 @@ a `.txt`, `.md` or `.py` file, or a terminal. Content type selects the handler.
 
 **Architecture**:
 
-- **Frontend** (TypeScript, `src/index.ts`) - the `jupyterlab_advanced_paste_content_extension:plugin`
-  plugin, currently the template's activation stub; `src/request.ts` calls the server under the
-  `jupyterlab-advanced-paste-content-extension` API namespace
-- **Server** (Python, `jupyterlab_advanced_paste_content_extension/routes.py`) - `setup_route_handlers`
-  registers the handlers; currently the template's `/hello` stub
+- **Frontend** (TypeScript) - a document-level capture-phase paste listener in `src/index.ts`.
+  `content.ts` classifies the clipboard, `surface.ts` names the receiving surface, `decide.ts` is the
+  behaviour matrix as one function, `reference.ts` builds the inserted text, `naming.ts` the
+  timestamp filename, `markdown.ts` the turndown conversion, `failure.ts` the error notification,
+  `request.ts` the server call
+- **Server** (Python, `jupyterlab_advanced_paste_content_extension/routes.py`) - one route,
+  `POST /jupyterlab-advanced-paste-content-extension/write`: base64 payload in, hash dedup, creation
+  with `O_EXCL` and `O_NOFOLLOW`, refusal of any folder outside the server root
 - **Tests** - jest (`src/__tests__/`), pytest (`jupyterlab_advanced_paste_content_extension/tests/`),
   Playwright galata (`ui-tests/`)
 - **CI/CD** - GitHub Actions plus jupyter-releaser under `.github/workflows/`
@@ -45,13 +48,13 @@ The Makefile owns the whole lifecycle. Never run `pip`, `jlpm`, `yarn`, `npm`, `
 `twine`, or any build, publish or clean command directly - those bypass the project-local
 `.nodeenv/` toolchain the Makefile pins.
 
-| Target | Effect |
-|---|---|
-| `make install` | build and install the extension |
-| `make publish` | release to npm and PyPI - needs explicit approval every time |
-| `make clean` | remove build artefacts |
-| `make mrproper` | remove all build and virtual-environment artefacts |
-| `make test` | jest plus pytest |
+| Target          | Effect                                                       |
+| --------------- | ------------------------------------------------------------ |
+| `make install`  | build and install the extension                              |
+| `make publish`  | release to npm and PyPI - needs explicit approval every time |
+| `make clean`    | remove build artefacts                                       |
+| `make mrproper` | remove all build and virtual-environment artefacts           |
+| `make test`     | jest plus pytest                                             |
 
 **Makefile version check**: the local Makefile declares its version on line 1. Compare it against
 `/home/lab/workspace/private/jupyterlab/@utils/jupyterlab-extensions/Makefile` and copy the canonical
@@ -60,8 +63,10 @@ work. Local version at project creation: 1.40, identical to canonical.
 
 ## Git Rules (Project-Specific)
 
-- **`package.json` and `package-lock.json` are committed together, always** - a lockfile left behind
-  makes CI fail with YN0028 on an immutable install
+- **`package.json` and `yarn.lock` are committed together, always** - a lockfile left behind makes
+  CI fail with YN0028 on an immutable install. The rule was written naming `package-lock.json`,
+  which this project never produces and CI never reads: it is `jlpm`/Yarn Berry, so `yarn.lock` is
+  the lockfile the failure is about
 - The repository was initialised with `git init -b main` and an initial import of every artefact
 
 ## Journal Rules (Project-Specific)
@@ -75,20 +80,23 @@ work. Local version at project creation: 1.40, identical to canonical.
 ## Acceptance Criteria and Defects
 
 - **Every feature carries acceptance criteria** - write and maintain them through the
-  `/project-management:acc-crit` command into `docs/acc-crit-*.md`, one document per feature area.
-  No feature is done until its criteria are closed
-- **Every defect is tracked** - file, triage and close through `/project-management:defect` into
+  `project-management` plugin into `docs/acc-crit.md`, one consolidated document with a category per
+  feature area. No feature is done until its criteria are closed
+- **Every defect is tracked** - file, triage and close through the same plugin into
   `docs/defects.md`, with the mandatory CRITICAL/MAJOR/MEDIUM/MINOR severity and a repro line
+- **Close only on evidence** - `close --evidence` takes the test that ran and what it showed, never
+  a plan. A criterion whose assertion no executed test reaches stays open and says why
 - Both documents are written only through `pm-tools`, never by hand - ids, author handles and the
   append-only log trail are the CLI's invariants
 - Status and coverage come from `/project-management:report`
 
 ## Required Workspace Skills
 
-| Skill | Use |
-|---|---|
-| `jupyterlab-extension` | extension development guidelines, CI/CD, jupyter-releaser, caveats |
-| `playwright` | browser automation for screenshots and UI verification |
+| Skill                  | Use                                                                    |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `jupyterlab-extension` | extension development guidelines, CI/CD, jupyter-releaser, caveats     |
+| `playwright`           | browser automation for screenshots and UI verification                 |
+| `devils-advocate`      | adversarial review before a risky commit; a panel needs an adjudicator |
 
 ## Strengthened Rules
 
@@ -96,3 +104,17 @@ work. Local version at project creation: 1.40, identical to canonical.
   Unicode arrow the global style prefers, so the text stays renderer-safe
 - **No screenshot claim without a render** - a statement about the extension's visible behaviour
   needs a real browser session behind it
+
+## Running the galata suite locally
+
+The Makefile has no E2E target, so this is the one lifecycle step outside it.
+
+- `jlpm install` in `ui-tests/`, then `jlpm playwright install chromium`
+- `ui-tests/playwright.config.js` hardcodes port 8888, which this workstation's own JupyterLab
+  holds. Run with a throwaway config on another port rather than pointing the suite at a live lab -
+  the tests create notebooks and write files into whatever workspace they reach
+- Kill the test server afterwards; a stale one holds the port and the next run fails to start
+- Build the notebook through `page.contents.uploadContent` and open it with `notebook.openByPath`.
+  Galata's `notebook.createNew` drives the File menu and then blocks on a kernel dialog, which does
+  not appear on a lab carrying other extensions - `nb_venv_kernels` alone swaps the kernel spec
+  manager

@@ -132,3 +132,5 @@ dmypy.json
 logs/
 
 tmp/
+graphify-out/
+junit.xml

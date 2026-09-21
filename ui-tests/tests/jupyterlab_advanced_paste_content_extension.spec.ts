@@ -1,21 +1,149 @@
 import { expect, test } from '@jupyterlab/galata';
+import { Page } from '@playwright/test';
 
 /**
- * Don't load JupyterLab webpage before running the tests.
- * This is required to ensure we capture all log messages.
+ * A notebook carrying one markdown cell and one code cell.
+ *
+ * Built through the contents API rather than galata's createNew, which drives
+ * the File menu and then waits for a kernel dialog. Neither is needed here, and
+ * both are sensitive to whatever other extensions the JupyterLab under test
+ * happens to have installed.
  */
-test.use({ autoGoto: false });
+const NOTEBOOK = JSON.stringify({
+  cells: [
+    { cell_type: 'markdown', metadata: {}, source: [] },
+    {
+      cell_type: 'code',
+      metadata: {},
+      execution_count: null,
+      outputs: [],
+      source: []
+    }
+  ],
+  metadata: {
+    kernelspec: {
+      display_name: 'Python 3',
+      language: 'python',
+      name: 'python3'
+    },
+    language_info: { name: 'python' }
+  },
+  nbformat: 4,
+  nbformat_minor: 5
+});
 
-test('should emit an activation console message', async ({ page }) => {
-  const logs: string[] = [];
+/**
+ * Dispatch a synthetic paste carrying rich HTML at whatever holds focus.
+ */
+async function pasteHtml(
+  page: Page,
+  html: string,
+  text: string
+): Promise<void> {
+  await page.evaluate(
+    ({ html, text }) => {
+      const data = new DataTransfer();
+      data.setData('text/html', html);
+      data.setData('text/plain', text);
+      document.activeElement?.dispatchEvent(
+        new ClipboardEvent('paste', {
+          clipboardData: data,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+    },
+    { html, text }
+  );
+}
 
-  page.on('console', message => {
-    logs.push(message.text());
+/**
+ * Dispatch a synthetic paste carrying a bitmap, named the way a browser names
+ * a clipboard image that has no source file.
+ */
+async function pasteBitmap(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02, 0x03
+    ]);
+    const data = new DataTransfer();
+    data.items.add(new File([bytes], 'image.png', { type: 'image/png' }));
+    document.activeElement?.dispatchEvent(
+      new ClipboardEvent('paste', {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true
+      })
+    );
+  });
+}
+
+test.describe('notebook surfaces', () => {
+  test.beforeEach(async ({ page, tmpPath }) => {
+    await page.contents.uploadContent(
+      NOTEBOOK,
+      'text',
+      `${tmpPath}/paste.ipynb`
+    );
+    await page.notebook.openByPath(`${tmpPath}/paste.ipynb`);
   });
 
-  await page.goto();
+  test('rich HTML pasted into a markdown cell becomes markdown', async ({
+    page
+  }) => {
+    await page.notebook.enterCellEditingMode(0);
+    await pasteHtml(page, '<h2>Title</h2><ul><li>one</li></ul>', 'Title one');
 
-  expect(
-    logs.filter(s => s === 'JupyterLab extension jupyterlab_advanced_paste_content_extension is activated!')
-  ).toHaveLength(1);
+    await expect
+      .poll(async () => page.notebook.getCellTextInput(0), { timeout: 15000 })
+      .toContain('## Title');
+  });
+
+  test('rich HTML pasted into a code cell arrives as the plain text flavour', async ({
+    page
+  }) => {
+    // Asserting the ABSENCE of markup would pass on an empty cell and would
+    // keep passing if the code-cell branch were deleted. Assert the positive.
+    await page.notebook.enterCellEditingMode(1);
+    await pasteHtml(page, '<h2>Title</h2>', 'Title');
+
+    await expect
+      .poll(async () => page.notebook.getCellTextInput(1), { timeout: 15000 })
+      .toContain('Title');
+    expect(await page.notebook.getCellTextInput(1)).not.toContain('## Title');
+  });
+
+  test('a bitmap pasted into a markdown cell writes that file and links it', async ({
+    page,
+    tmpPath
+  }) => {
+    await page.notebook.enterCellEditingMode(0);
+    await pasteBitmap(page);
+
+    await expect
+      .poll(async () => page.notebook.getCellTextInput(0), { timeout: 15000 })
+      .toMatch(/!\[\]\(<paste-[0-9]{8}-[0-9]{6}\.png>\)/);
+
+    // Read the name the extension actually chose and assert that exact file
+    // exists beside the notebook. A prefix plus toBeDefined() would pass for
+    // false, and would not prove the folder.
+    const source = (await page.notebook.getCellTextInput(0)) || '';
+    const match = source.match(/<(paste-[0-9]{8}-[0-9]{6}\.png)>/);
+    expect(match).not.toBeNull();
+
+    expect(await page.contents.fileExists(`${tmpPath}/${match![1]}`)).toBe(
+      true
+    );
+  });
+
+  test('a bitmap pasted into a code cell inserts a quoted filename', async ({
+    page
+  }) => {
+    await page.notebook.enterCellEditingMode(1);
+    await pasteBitmap(page);
+
+    await expect
+      .poll(async () => page.notebook.getCellTextInput(1), { timeout: 15000 })
+      .toMatch(/^"paste-[0-9]{8}-[0-9]{6}\.png"$/);
+  });
 });
