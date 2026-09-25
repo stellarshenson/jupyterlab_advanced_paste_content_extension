@@ -1,6 +1,6 @@
 {
     "name": "jupyterlab_advanced_paste_content_extension",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Jupyterlab extension that captures pasted content (text, file, graphics file / screenshot etc) and copies it to the current folder and in the receiving end (txt file, md file, python file or terminal). Extension will use different handlers to dedice how to handle the content",
     "keywords": [
         "jupyter",
