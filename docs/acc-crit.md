@@ -88,13 +88,16 @@ Bitmap pastes, which carry pixels and no source file
   - test-tags: UNIT, FUNCTIONAL
   - log: 2026-09-20T17:20:38Z @kj added
   - log: 2026-09-20T17:34:32Z @kj closed: server-side hash dedup
-- [x] `ACC-IMAGE-12` **Reference form per surface** - HIGH; image link on the two markdown surfaces with the destination in angle brackets, JSON-quoted filename in a code cell, bare filename in a .txt file and a terminal
-  - evidence: reference.spec asserts every form including a name with a space and a name with a quote; jest 61 green
+- [x] `ACC-IMAGE-12` **Reference form per surface** - HIGH; image link on the two markdown surfaces with the destination in angle brackets, JSON-quoted filename in a code cell, bare filename in a .txt file, and in a terminal a shell-escaped path relative to the shell's working directory
+  - evidence: reference.spec asserts every form, the terminal as a shell-escaped path; galata asserts the image link in a markdown cell, the quoted name in a code cell and the relative path at a real terminal prompt; 90 jest, 5 E2E green
   - test: paste one screenshot into each of the five surfaces, assert each inserted form against the matrix in docs/design-content-types.md
   - test-tags: FUNCTIONAL, E2E
   - log: 2026-09-20T17:20:38Z @kj added
   - log: 2026-09-20T17:34:32Z @kj closed: reference form per surface
   - log: 2026-09-20T18:05:45Z @kj edited text and evidence (replaced)
+  - log: 2026-09-24T23:36:14Z @kj reopened: reopened: request of 2026-09-25 - a terminal gets a path relative to the shell, not the bare name; evidence retired: reference.spec asserts every form including a name with a space and a name with a quote; jest 61 green
+  - log: 2026-09-24T23:36:14Z @kj edited text "image link on the two markdown surfaces with the destination in angle brackets, JSON-quoted filename in a code cell, bare filename in a .txt file and a terminal" -> "image link on the two markdown surfaces with the destination in angle brackets, JSON-quoted filename in a code cell, bare filename in a .txt file, and in a terminal a shell-escaped path relative to the shell's working directory"
+  - log: 2026-09-25T00:12:42Z @kj closed
 
 ## File Reference Handling `FILES`
 
@@ -112,13 +115,16 @@ Pastes carrying a real file copied from a file manager
   - test-tags: UNIT
   - log: 2026-09-20T17:20:38Z @kj added
   - log: 2026-09-20T17:34:32Z @kj closed: real filename preserved
-- [x] `ACC-FILES-15` **Reference form per surface** - MEDIUM; link with the destination in angle brackets on the two markdown surfaces, JSON-quoted filename in a code cell, bare filename in a .txt file and a terminal; a pasted image file gets the image form
-  - evidence: reference.spec asserts both kinds on every surface; jest 61 green
+- [x] `ACC-FILES-15` **Reference form per surface** - MEDIUM; link with the destination in angle brackets on the two markdown surfaces, JSON-quoted filename in a code cell, bare filename in a .txt file, and in a terminal a shell-escaped path relative to the shell's working directory; a pasted image file gets the image form
+  - evidence: reference.spec asserts both kinds on every surface, the terminal as a shell-escaped path with a name holding a space; 90 jest green
   - test: paste one file into each of the five surfaces, assert each inserted form against the matrix in docs/design-content-types.md
   - test-tags: FUNCTIONAL
   - log: 2026-09-20T17:20:39Z @kj added
   - log: 2026-09-20T17:34:32Z @kj closed: reference form per surface
   - log: 2026-09-20T18:05:45Z @kj edited text and evidence (replaced)
+  - log: 2026-09-24T23:36:14Z @kj reopened: reopened: request of 2026-09-25 - a terminal gets a path relative to the shell, not the bare name; evidence retired: reference.spec asserts both kinds on every surface; jest 61 green
+  - log: 2026-09-24T23:36:14Z @kj edited text "link with the destination in angle brackets on the two markdown surfaces, JSON-quoted filename in a code cell, bare filename in a .txt file and a terminal; a pasted image file gets the image form" -> "link with the destination in angle brackets on the two markdown surfaces, JSON-quoted filename in a code cell, bare filename in a .txt file, and in a terminal a shell-escaped path relative to the shell's working directory; a pasted image file gets the image form"
+  - log: 2026-09-25T00:12:42Z @kj closed
 - [x] `ACC-FILES-16` **Edge: name already taken by different content** - HIGH; a payload whose name exists in the folder and whose bytes differ is written as <stem>-1.<ext>, then -2; an existing file is never overwritten
   - evidence: pytest test_same_name_different_content_gets_a_suffix asserts paste-...-1.png is written and the original survives with its own bytes; 12 pytest green
   - test: write a.png, then write different bytes as a.png, assert both a.png and a-1.png exist with their own contents
@@ -143,3 +149,30 @@ Pastes carrying a real file copied from a file manager
   - log: 2026-09-20T17:31:11Z @kj added
   - log: 2026-09-20T17:34:33Z @kj closed: all files written
   - log: 2026-09-20T18:05:45Z @kj edited text and evidence (replaced)
+
+## Terminal Paste `TERM`
+
+where a paste into a terminal is written and what path the shell receives
+
+- [x] `ACC-TERM-19` **Written into the file browser folder** - HIGH; a screenshot or a file pasted into a terminal is written into the folder the file browser shows, whatever folder the shell is in; the terminals the AI assistant panels open are terminals of the same kind and behave the same
+  - evidence: galata terminal test asserts the pasted file exists in the file browser folder and not in the shell folder; pytest test_a_terminal_paste_lands_in_the_folder_named_not_the_shell_folder asserts the same against a real terminal; 24 pytest, 5 E2E green
+  - test: cd a terminal into another folder, paste a screenshot, assert the file exists in the file browser folder and not in the shell folder
+  - test-tags: UNIT, E2E
+  - mechanism: 2026-09-24T23:36:09Z @kj the frontend sends the file browser folder and the terminal name; the server writes into that folder and never into the shell folder
+  - log: 2026-09-24T23:36:09Z @kj added
+  - log: 2026-09-25T00:12:42Z @kj closed
+- [x] `ACC-TERM-20` **Path relative to the shell** - HIGH; the terminal receives the path of the written file relative to the shell's working directory, shell-escaped, so ls on it succeeds at the prompt; this holds when the shell is outside the server root
+  - evidence: galata: test -f on the inserted ../browser/paste-*.png at a real bash prompt prints FOUND-42; pytest asserts ../browser/a b.png from a real terminal, a relative path from a shell outside the root, and the nested-shell case; 24 pytest, 5 E2E green
+  - test: cd a terminal into a sibling folder, paste a screenshot, run ls on the inserted text, assert it lists the file
+  - test-tags: UNIT, E2E
+  - mechanism: 2026-09-24T23:36:09Z @kj the server reads /proc/<pid>/cwd of the terminal pty process and answers terminal_path, the real path of the written file relative to that folder; the frontend backslash-escapes it the way the drag-and-drop path extension does
+  - log: 2026-09-24T23:36:09Z @kj added
+  - log: 2026-09-25T00:12:42Z @kj closed
+  - log: 2026-09-25T00:12:50Z @kj adversarial review (architect, ux-designer, bug-hunter, slop-hunter): round 1 found the nested-shell case, filed and fixed as DEF-PASTE-32; round 2 pinned confirm clean (SHIP)
+- [x] `ACC-TERM-21` **Edge: shell folder unreadable** - MEDIUM; when the terminal named in the write is no longer running, or the working directory of the process its user types into cannot be read, the file is still written and the answer carries the absolute path, which an open terminal receives; no terminal is started
+  - evidence: pytest test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell asserts the absolute path and no new terminal; test_terminal_cwd_is_none_without_a_terminal_manager; an unreadable /proc directory takes the same None branch and is not simulated; 24 pytest green
+  - test: POST a write naming a terminal that does not exist, assert the absolute path comes back and no terminal was created
+  - test-tags: UNIT
+  - log: 2026-09-24T23:36:09Z @kj added
+  - log: 2026-09-25T00:04:52Z @kj edited text "when the terminal is no longer running or its working directory cannot be read, the file is still written and the terminal receives its absolute path; no terminal is started" -> "when the terminal named in the write is no longer running, or the working directory of the process its user types into cannot be read, the file is still written and the answer carries the absolute path, which an open terminal receives; no terminal is started"
+  - log: 2026-09-25T00:12:42Z @kj closed

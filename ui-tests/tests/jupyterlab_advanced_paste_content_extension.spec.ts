@@ -147,3 +147,82 @@ test.describe('notebook surfaces', () => {
       .toMatch(/^"paste-[0-9]{8}-[0-9]{6}\.png"$/);
   });
 });
+
+/**
+ * Start recording everything the current terminal's shell prints. The echo of
+ * what arrives on stdin is part of it, so an insertion shows up here too.
+ */
+async function recordShellOutput(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const win = window as any;
+    const session = win.jupyterapp.shell.currentWidget.content.session;
+    win.shellOutput = '';
+    session.messageReceived.connect((_: unknown, message: any) => {
+      if (message.type === 'stdout') {
+        win.shellOutput += message.content.join('');
+      }
+    });
+  });
+}
+
+/** What the shell has printed since recordShellOutput, escape codes removed. */
+async function shellOutput(page: Page): Promise<string> {
+  const raw = await page.evaluate(() => (window as any).shellOutput as string);
+  return raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+}
+
+test.describe('terminal surface', () => {
+  test('a bitmap pasted into a terminal lands in the file browser folder and the shell reaches it', async ({
+    page,
+    tmpPath
+  }) => {
+    await page.contents.createDirectory(`${tmpPath}/browser`);
+    await page.contents.createDirectory(`${tmpPath}/shell`);
+    await page.filebrowser.openDirectory(`${tmpPath}/browser`);
+
+    // The shell sits in a sibling of the folder the file browser shows.
+    // The command resolves to the widget, which cannot cross back to the test.
+    await page.evaluate(async cwd => {
+      await (window as any).jupyterapp.commands.execute('terminal:create-new', {
+        cwd
+      });
+    }, `${tmpPath}/shell`);
+    await page.locator('.jp-Terminal').waitFor();
+    await recordShellOutput(page);
+    await page.locator('.jp-Terminal').click();
+
+    // A short prompt keeps the command line on one row, so the echo of the
+    // inserted path is not broken by a wrap.
+    await page.keyboard.type("PS1='$ '; echo READY-$((1+1))");
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => shellOutput(page), { timeout: 15000 })
+      .toContain('READY-2');
+
+    await page.keyboard.type('test -f ');
+    await pasteBitmap(page);
+
+    // The file lands beside the file browser, so the shell gets a path that
+    // climbs out of its own folder to reach it.
+    await expect
+      .poll(async () => shellOutput(page), { timeout: 15000 })
+      .toMatch(/test -f \.\.\/browser\/paste-[0-9]{8}-[0-9]{6}\.png/);
+    const name = (await shellOutput(page)).match(
+      /\.\.\/browser\/(paste-[0-9]{8}-[0-9]{6}\.png)/
+    )![1];
+
+    // The echo shows the command, not its result, so the result is computed.
+    await page.keyboard.type(' && echo FOUND-$((40+2))');
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => shellOutput(page), { timeout: 15000 })
+      .toContain('FOUND-42');
+
+    expect(await page.contents.fileExists(`${tmpPath}/browser/${name}`)).toBe(
+      true
+    );
+    expect(await page.contents.fileExists(`${tmpPath}/shell/${name}`)).toBe(
+      false
+    );
+  });
+});

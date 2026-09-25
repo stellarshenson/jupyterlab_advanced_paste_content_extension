@@ -1,4 +1,4 @@
-import { referenceFor } from '../reference';
+import { referenceFor, shellEscape } from '../reference';
 
 const NAME = 'paste-20260920-191530.png';
 
@@ -39,9 +39,38 @@ describe('referenceFor', () => {
     );
   });
 
-  it('inserts the bare filename in a text file and a terminal', () => {
+  it('inserts the bare filename in a text file', () => {
     expect(referenceFor('text-file', NAME, 'image')).toEqual(NAME);
-    expect(referenceFor('terminal', NAME, 'image')).toEqual(NAME);
-    expect(referenceFor('terminal', 'data.csv', 'file')).toEqual('data.csv');
+    expect(referenceFor('text-file', 'Q3 report.pdf', 'file')).toEqual(
+      'Q3 report.pdf'
+    );
+  });
+
+  it('inserts the path in a terminal, shell-escaped', () => {
+    expect(referenceFor('terminal', `../shots/${NAME}`, 'image')).toEqual(
+      `../shots/${NAME}`
+    );
+    expect(referenceFor('terminal', 'docs/Q3 report.pdf', 'file')).toEqual(
+      'docs/Q3\\ report.pdf'
+    );
+  });
+});
+
+describe('shellEscape', () => {
+  it('leaves a path of safe characters unchanged', () => {
+    expect(shellEscape('/home/me/data_v1.2/a-b+c@d%e:f,g=h.csv')).toEqual(
+      '/home/me/data_v1.2/a-b+c@d%e:f,g=h.csv'
+    );
+  });
+
+  it('backslash-escapes every character the shell would read', () => {
+    expect(shellEscape(`it's (1) $HOME;*.png`)).toEqual(
+      "it\\'s\\ \\(1\\)\\ \\$HOME\\;\\*.png"
+    );
+  });
+
+  it('keeps a character outside the basic plane whole', () => {
+    // Without the u flag each half of the surrogate pair got its own backslash.
+    expect(shellEscape('a\u{1F600}.png')).toEqual('a\\\u{1F600}.png');
   });
 });

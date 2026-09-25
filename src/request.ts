@@ -57,6 +57,11 @@ export async function requestAPI<T>(
 export interface IWriteResult {
   filename: string;
   reused: boolean;
+  /**
+   * On a write that named a terminal: the path the shell reaches the file by,
+   * relative to its working directory, or absolute when that could not be read.
+   */
+  terminal_path?: string;
 }
 
 /**
@@ -79,8 +84,8 @@ export async function writeFile(
       folder,
       filename,
       content_base64: contentBase64,
-      // Naming the terminal lets the server resolve the shell's own working
-      // directory, which the frontend has no way to read.
+      // Naming the terminal lets the server answer the path relative to the
+      // shell's working directory, which the frontend has no way to read.
       ...(terminal ? { terminal } : {})
     })
   });

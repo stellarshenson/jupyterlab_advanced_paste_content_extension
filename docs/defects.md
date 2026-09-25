@@ -111,6 +111,29 @@ The paste listener, its handlers and what they do with the clipboard payload
   - test-tags: UNIT
   - log: 2026-09-20T18:04:13Z @kj added
   - log: 2026-09-20T18:12:13Z @kj closed: extensionFor reads a table of known bitmap types and falls back to png
+- [x] `DEF-PASTE-30` **Terminal name is not shell-escaped** - MEDIUM; a pasted file whose name holds a space or a shell character reaches the prompt unescaped, so My Report.pdf arrives as two arguments
+  - evidence: jest reference.spec 'inserts the path in a terminal, shell-escaped' asserts docs/Q3\ report.pdf; the shellEscape spec covers a quote, parentheses, $, ;, * and a character outside the basic plane; 90 jest green
+  - repro: copy a file named My Report.pdf in the OS file manager, paste into a terminal, the shell reads two words
+  - test-tags: UNIT
+  - root-cause: 2026-09-24T23:35:47Z @kj referenceFor returns the bare file name for the terminal surface with no escaping
+  - log: 2026-09-24T23:35:47Z @kj added
+  - log: 2026-09-25T00:12:32Z @kj closed
+- [x] `DEF-PASTE-31` **Terminal name does not resolve at the prompt** - MAJOR; with the shell outside the server root, a paste into a terminal writes into the file browser folder but inserts the bare file name, which the shell looks up in its own folder and does not find
+  - evidence: pytest test_the_terminal_path_resolves_from_a_shell_outside_the_root asserts a relative path reaching the file from the shell folder; galata terminal test runs test -f on the inserted ../browser/paste-*.png in a real bash and prints FOUND-42; 5 E2E passed in 46.1s
+  - related: DEF-PASTE-14 - the terminal folder work this fallback came from
+  - repro: in a terminal run cd /tmp, paste a screenshot, run ls on the inserted name: No such file or directory
+  - test-tags: UNIT, E2E
+  - root-cause: 2026-09-24T23:35:51Z @kj _terminal_cwd refuses a shell folder outside the server root, so the route falls back to the folder the frontend named (the file browser), but referenceFor still inserts the bare file name, which is relative to a folder the shell is not in
+  - log: 2026-09-24T23:35:51Z @kj added
+  - log: 2026-09-25T00:12:35Z @kj closed
+- [x] `DEF-PASTE-32` **Terminal path wrong in a nested shell** - MAJOR; after a nested shell (bash, sudo -s, nix-shell) and a cd inside it, a terminal paste gets a path relative to the folder of the terminal's first process, which the user has left, so the path does not resolve at the prompt
+  - evidence: pytest test_the_terminal_path_follows_a_nested_shell nests bash in bash, cd into a folder at another depth, asserts the path resolves from there; it fails on the old lookup with 'the nested shell never reached the folder'; 24 pytest green
+  - related: DEF-PASTE-31 - same path computation; found by the adversarial review round 1
+  - repro: in a terminal run bash, then cd into a deeper folder, paste a screenshot, run ls on the inserted path: No such file or directory
+  - test-tags: UNIT
+  - root-cause: 2026-09-25T00:03:46Z @kj _terminal_cwd reads /proc/<pid>/cwd of the pty's first process; the process the user types into is the foreground process group, whose directory differs after a nested shell
+  - log: 2026-09-25T00:03:46Z @kj added
+  - log: 2026-09-25T00:12:32Z @kj closed
 
 ## Write Route `WRITE`
 
@@ -148,6 +171,23 @@ The server endpoint that writes a pasted payload to disk
   - test-tags: UNIT
   - log: 2026-09-20T18:04:13Z @kj added
   - log: 2026-09-20T18:12:13Z @kj closed: folder guard uses os.path.commonpath instead of a string prefix
+- [x] `DEF-WRITE-29` **Unknown terminal name starts a shell** - MAJOR; a write naming a terminal that is not running makes the server start a new shell under that name; the shell is never culled, and GET /api/terminals then answers HTTP 500 for every client
+  - evidence: pytest test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell against a real jupyter_server_terminals manager: GET /api/terminals lists no new terminal and the absolute path comes back; on the old route the same test fails with HTTP 500 from the terminal list; 24 pytest green
+  - related: DEF-PASTE-14 - _terminal_cwd was added by that fix
+  - repro: POST /jupyterlab-advanced-paste-content-extension/write with terminal no-such-terminal, then GET /api/terminals lists no-such-terminal
+  - test-tags: UNIT
+  - root-cause: 2026-09-24T23:35:47Z @kj _terminal_cwd calls terminado NamedTermManager.get_terminal, which is get-or-create: an unknown name runs new_terminal() and registers it
+  - log: 2026-09-24T23:35:47Z @kj added
+  - log: 2026-09-24T23:40:51Z @kj reproduced on the old route by pytest test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell: after the write, GET /api/terminals answers HTTP 500, because the shell get_terminal registers never gets the last_activity that create() sets, so get_terminal_model fails and the whole terminal list breaks
+  - log: 2026-09-24T23:40:51Z @kj edited text "a write naming a terminal that is not running makes the server start a new shell under that name; the shell is never culled" -> "a write naming a terminal that is not running makes the server start a new shell under that name; the shell is never culled, and GET /api/terminals then answers HTTP 500 for every client"
+  - log: 2026-09-25T00:12:32Z @kj closed
+- [x] `DEF-WRITE-33` **Unwritable folder reports Unhandled error** - MINOR; a paste into a folder the server cannot write shows Could not write the pasted content: Unhandled error, and a folder removed after it was opened shows folder does not exist, neither naming the folder; nothing is written in either case
+  - evidence: pytest test_an_unwritable_folder_is_named_in_the_error (chmod 500 folder) asserts the message carries locked and Permission denied; test_missing_folder_is_reported asserts the folder name on 404; both fail on the old route; 24 pytest green
+  - repro: chmod 500 a folder, open it in the file browser or a notebook in it, paste a screenshot: the notification says Unhandled error
+  - test-tags: UNIT
+  - root-cause: 2026-09-25T00:03:46Z @kj WriteRouteHandler.post lets the OSError from _store escape, so jupyter_server answers 500 with the generic message Unhandled error; the 404 message carries no folder name
+  - log: 2026-09-25T00:03:46Z @kj added
+  - log: 2026-09-25T00:12:32Z @kj closed
 
 ## Test Suite `TEST`
 

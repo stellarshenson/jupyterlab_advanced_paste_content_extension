@@ -32,8 +32,9 @@ interface ITarget {
   /** Returns false when the surface has gone away and the text did not land. */
   insert: (text: string) => boolean;
   /**
-   * Terminal name, on the terminal surface only. The server resolves the
-   * shell's working directory from it, because the frontend cannot.
+   * Terminal name, on the terminal surface only. The server reads the shell's
+   * working directory from it and answers the path the shell reaches the file
+   * by, because the frontend cannot read that directory.
    */
   terminal?: string;
 }
@@ -116,6 +117,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
         const session = terminals.currentWidget.content.session;
         return {
           surface: 'terminal',
+          // The folder the user is looking at, not the shell's: the shell is
+          // handed a path to the file instead of its bare name.
           folder: browser.model.path,
           host: terminals.currentWidget.content.node,
           terminal: session.name,
@@ -146,7 +149,11 @@ const plugin: JupyterFrontEndPlugin<void> = {
         toBase64(buffer),
         target.terminal
       );
-      return referenceFor(target.surface, result.filename, kind);
+      return referenceFor(
+        target.surface,
+        result.terminal_path ?? result.filename,
+        kind
+      );
     };
 
     /**

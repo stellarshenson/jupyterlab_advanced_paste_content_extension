@@ -76,30 +76,44 @@ def _write_new(folder, filename, data):
         return candidate
 
 
-def _terminal_cwd(terminal_manager, name, root):
-    """Resolve a terminal's shell working directory, relative to the root.
+def _terminal_cwd(terminal_manager, name):
+    """Return the working directory of the process a terminal's user types into.
 
-    Only the server can answer this. The frontend has no API for a terminal's
-    cwd, so without it a paste into a terminal writes wherever the file browser
-    happens to be pointing and the inserted name does not resolve at the prompt.
+    Only the server can answer this: the frontend has no API for a terminal's
+    cwd. The terminal is looked up in the manager's table, never through
+    get_terminal - terminado's get_terminal is get-or-create, and would start a
+    shell for any name a request carries.
 
-    Returns None when the terminal is unknown, when the platform has no /proc,
-    or when the shell has walked outside the server root - the caller then falls
-    back to the folder the frontend named.
+    Returns None when the terminal is not running, the platform has no /proc,
+    or the foreground process's directory cannot be read.
     """
-    if terminal_manager is None or not name:
-        return None
+    terminals = getattr(terminal_manager, "terminals", None) or {}
     try:
-        terminal = terminal_manager.get_terminal(name)
-        pid = terminal.ptyproc.pid
+        pid = terminals[name].ptyproc.pid
+        # After a nested shell (bash, sudo -s, nix-shell) the pty's first
+        # process keeps its old directory; the user types into the foreground
+        # process group, whose leader is field 8 (tpgid) of /proc/<pid>/stat.
+        with open(os.path.join("/proc", str(pid), "stat")) as stat:
+            pid = stat.read().rsplit(")", 1)[1].split()[5]
         cwd = os.path.realpath(os.path.join("/proc", str(pid), "cwd"))
     except Exception:
         return None
-    if not os.path.isdir(cwd):
-        return None
-    if cwd != root and not cwd.startswith(root + os.sep):
-        return None
-    return "" if cwd == root else os.path.relpath(cwd, root)
+    return cwd if os.path.isdir(cwd) else None
+
+
+def _terminal_path(terminal_manager, name, folder, filename):
+    """The path a terminal's shell uses to reach filename in folder.
+
+    Relative to the shell's working directory, as the drag-and-drop path
+    extension inserts it; absolute when that directory cannot be read, because
+    an absolute path resolves from any folder. /proc reports the shell's
+    directory with symlinks resolved, so the folder is resolved too: under a
+    symlinked server root the path would otherwise climb to / and come back
+    down through the link.
+    """
+    path = os.path.join(os.path.realpath(folder), filename)
+    cwd = _terminal_cwd(terminal_manager, name)
+    return path if cwd is None else os.path.relpath(path, cwd)
 
 
 def _store(folder, filename, data):
@@ -133,34 +147,39 @@ class WriteRouteHandler(APIHandler):
 
         root = os.path.abspath(self.contents_manager.root_dir)
 
-        # A paste into a terminal names the terminal rather than a folder: the
-        # frontend cannot know where the shell has cd'd to, and the file browser
-        # it would otherwise name diverges after the first cd.
-        terminal = body.get("terminal")
-        if terminal:
-            resolved = _terminal_cwd(
-                self.settings.get("terminal_manager"), terminal, root
-            )
-            if resolved is not None:
-                folder = resolved
-
         target_folder = os.path.abspath(os.path.join(root, folder))
         # commonpath, not a string prefix: with root "/" the prefix would be "//"
         # and every path under it would be refused.
         if os.path.commonpath([root, target_folder]) != root:
             raise tornado.web.HTTPError(400, "folder is outside the server root")
         if not os.path.isdir(target_folder):
-            raise tornado.web.HTTPError(404, "folder does not exist")
+            raise tornado.web.HTTPError(404, f"folder {folder or '/'} does not exist")
 
         try:
             data = base64.b64decode(content_base64, validate=True)
         except Exception:
             raise tornado.web.HTTPError(400, "content_base64 is not valid base64")
 
-        written, reused = await IOLoop.current().run_in_executor(
-            None, _store, target_folder, filename, data
-        )
-        self.finish(json.dumps({"filename": written, "reused": reused}))
+        # Without this the user reads "Unhandled error" and cannot tell which
+        # folder refused the write, or why.
+        try:
+            written, reused = await IOLoop.current().run_in_executor(
+                None, _store, target_folder, filename, data
+            )
+        except OSError as error:
+            raise tornado.web.HTTPError(
+                500, f"could not write into {folder or '/'}: {error.strerror}"
+            ) from error
+        answer = {"filename": written, "reused": reused}
+        # A paste into a terminal is written into the folder the file browser
+        # shows, which the shell is usually not in, so the terminal needs a path
+        # to the file rather than its bare name.
+        terminal = body.get("terminal")
+        if terminal:
+            answer["terminal_path"] = _terminal_path(
+                self.settings.get("terminal_manager"), terminal, target_folder, written
+            )
+        self.finish(json.dumps(answer))
 
 
 def setup_route_handlers(web_app):

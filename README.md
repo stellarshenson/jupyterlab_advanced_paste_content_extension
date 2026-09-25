@@ -23,11 +23,12 @@ becomes a copy in the current folder. Text stays text.
 - **Pasted files are copied in** - a file copied from a file manager lands in the current folder
   under its own name; several files at once all arrive
 - **The reference suits the surface** - `![](name)` in a markdown file or markdown cell, `"name"` in
-  a code cell so it drops into `plt.imread()`, the bare name in a text file or a terminal
+  a code cell so it drops into `plt.imread()`, the bare name in a text file
 - **Rich HTML becomes markdown** - only on the two surfaces that render it; a text file, a code cell
   and a terminal take the plain-text flavour, which is what a normal paste already gives them
-- **A terminal gets the shell's own folder** - the file lands in the directory the shell is actually
-  in, read from the shell process by the server, not beside the document last opened
+- **A terminal gets a path it can use** - the file lands in the folder the file browser shows, and the
+  terminal receives the path to it from the shell's own working directory, escaped for the shell;
+  Claude Code and the other AI assistant terminals included
 - **Nothing is written twice** - an identical payload references the file already in the folder, and
   a name clash never overwrites
 - **Server-side write** - the file is created through a Jupyter server endpoint, so it lands in the

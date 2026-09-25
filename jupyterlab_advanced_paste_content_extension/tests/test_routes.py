@@ -118,6 +118,22 @@ async def test_missing_folder_is_reported(jp_fetch):
         )
 
     assert error.value.code == 404
+    assert "absent" in json.loads(error.value.response.body)["message"]
+
+
+async def test_an_unwritable_folder_is_named_in_the_error(jp_fetch, jp_root_dir):
+    locked = jp_root_dir / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    try:
+        with pytest.raises(HTTPClientError) as error:
+            await write(jp_fetch, folder="locked", filename="a.png", content_base64=PNG)
+    finally:
+        locked.chmod(0o700)
+
+    message = json.loads(error.value.response.body)["message"]
+    assert "locked" in message
+    assert "Permission denied" in message
 
 
 async def test_a_dangling_symlink_does_not_escape_the_root(
@@ -209,84 +225,106 @@ async def test_concurrent_same_name_writes_do_not_overwrite(jp_fetch, jp_root_di
     assert written == sorted([base64.b64decode(PNG), base64.b64decode(OTHER)])
 
 
-class _FakePty:
-    def __init__(self, pid):
-        self.pid = pid
+async def _open_terminal(jp_fetch, cwd):
+    response = await jp_fetch(
+        "api", "terminals", method="POST", body=json.dumps({"cwd": str(cwd)})
+    )
+    return json.loads(response.body)["name"]
 
 
-class _FakeTerminal:
-    def __init__(self, pid):
-        self.ptyproc = _FakePty(pid)
+async def _terminal_names(jp_fetch):
+    response = await jp_fetch("api", "terminals", method="GET")
+    return [terminal["name"] for terminal in json.loads(response.body)]
 
 
-class _FakeTerminalManager:
-    def __init__(self, terminals):
-        self._terminals = terminals
+async def test_a_terminal_paste_lands_in_the_folder_named_not_the_shell_folder(
+    jp_fetch, jp_root_dir
+):
+    (jp_root_dir / "browser").mkdir()
+    (jp_root_dir / "shell").mkdir()
+    name = await _open_terminal(jp_fetch, jp_root_dir / "shell")
 
-    def get_terminal(self, name):
-        return self._terminals[name]
+    payload = await write(
+        jp_fetch, folder="browser", filename="a b.png", content_base64=PNG, terminal=name
+    )
+
+    assert (jp_root_dir / "browser" / "a b.png").exists()
+    assert not (jp_root_dir / "shell" / "a b.png").exists()
+    assert payload["terminal_path"] == os.path.join("..", "browser", "a b.png")
 
 
-def test_terminal_cwd_resolves_the_shell_working_directory(tmp_path):
-    """Only the server can read this; the frontend has no API for it."""
+async def test_the_terminal_path_resolves_from_a_shell_outside_the_root(
+    jp_fetch, jp_root_dir
+):
+    outside = jp_root_dir.parent / "outside"
+    outside.mkdir()
+    name = await _open_terminal(jp_fetch, outside)
+
+    payload = await write(
+        jp_fetch, folder="", filename="a.png", content_base64=PNG, terminal=name
+    )
+
+    assert not os.path.isabs(payload["terminal_path"])
+    reached = os.path.join(os.path.realpath(outside), payload["terminal_path"])
+    assert os.path.realpath(reached) == os.path.realpath(jp_root_dir / "a.png")
+
+
+async def test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell(
+    jp_fetch, jp_root_dir
+):
+    payload = await write(
+        jp_fetch,
+        folder="",
+        filename="a.png",
+        content_base64=PNG,
+        terminal="no-such-terminal",
+    )
+
+    # terminado's get_terminal is get-or-create: this is the assertion that
+    # fails if the lookup ever goes back through it.
+    assert "no-such-terminal" not in await _terminal_names(jp_fetch)
+    assert payload["terminal_path"] == os.path.join(
+        os.path.realpath(jp_root_dir), "a.png"
+    )
+
+
+def test_terminal_cwd_is_none_without_a_terminal_manager():
     from jupyterlab_advanced_paste_content_extension import routes
 
-    root = str(tmp_path)
-    work = tmp_path / "work" / "deep"
-    work.mkdir(parents=True)
+    assert routes._terminal_cwd(None, "1") is None
 
-    # This process's own cwd stands in for the shell's.
-    import subprocess
-    import sys
 
-    child = subprocess.Popen(
-        [sys.executable, "-c", "import sys; sys.stdin.read()"],
-        cwd=str(work),
-        stdin=subprocess.PIPE,
-    )
+def test_the_terminal_path_follows_a_nested_shell(tmp_path):
+    """The directory that counts is the foreground process's, not the pty's first."""
+    import time
+    from types import SimpleNamespace
+
+    from ptyprocess import PtyProcessUnicode
+
+    from jupyterlab_advanced_paste_content_extension import routes
+
+    outer = tmp_path / "outer"
+    inner = outer / "deep"
+    browser = tmp_path / "browser"
+    inner.mkdir(parents=True)
+    browser.mkdir()
+
+    shell = PtyProcessUnicode.spawn(["bash", "--norc", "-i"], cwd=str(outer))
+    manager = SimpleNamespace(terminals={"t": SimpleNamespace(ptyproc=shell)})
     try:
-        manager = _FakeTerminalManager({"1": _FakeTerminal(child.pid)})
-        assert routes._terminal_cwd(manager, "1", root) == os.path.join(
-            "work", "deep"
+        shell.write("bash --norc -i\n")
+        shell.write(f"cd '{inner}'\n")
+        deadline = time.monotonic() + 5
+        while routes._terminal_cwd(manager, "t") != str(inner.resolve()):
+            assert time.monotonic() < deadline, "the nested shell never reached the folder"
+            time.sleep(0.05)
+
+        path = routes._terminal_path(manager, "t", str(browser), "a b.png")
+
+        # outer and deep sit at different depths, so a path computed from the
+        # pty's first process would not resolve from where the user is.
+        assert os.path.realpath(os.path.join(inner, path)) == str(
+            (browser / "a b.png").resolve()
         )
     finally:
-        child.stdin.close()
-        child.wait(timeout=10)
-
-
-def test_terminal_cwd_refuses_a_shell_outside_the_root(tmp_path):
-    from jupyterlab_advanced_paste_content_extension import routes
-
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-
-    import subprocess
-    import sys
-
-    child = subprocess.Popen(
-        [sys.executable, "-c", "import sys; sys.stdin.read()"],
-        cwd=str(outside),
-        stdin=subprocess.PIPE,
-    )
-    try:
-        manager = _FakeTerminalManager({"1": _FakeTerminal(child.pid)})
-        assert routes._terminal_cwd(manager, "1", str(root)) is None
-    finally:
-        child.stdin.close()
-        child.wait(timeout=10)
-
-
-def test_terminal_cwd_returns_none_without_a_manager_or_name():
-    from jupyterlab_advanced_paste_content_extension import routes
-
-    assert routes._terminal_cwd(None, "1", "/") is None
-    assert routes._terminal_cwd(_FakeTerminalManager({}), "", "/") is None
-
-
-def test_terminal_cwd_returns_none_for_an_unknown_terminal(tmp_path):
-    from jupyterlab_advanced_paste_content_extension import routes
-
-    manager = _FakeTerminalManager({})
-    assert routes._terminal_cwd(manager, "99", str(tmp_path)) is None
+        shell.terminate(force=True)
