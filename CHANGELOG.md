@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.3] - 2026-09-25
+
+### Changed
+
+- The lockfile resolves prettier, typescript-eslint, `@jupyter/eslint-plugin` and yjs to their newest
+  releases inside the version ranges `package.json` already declares
+- The build Makefile is at version 1.43, whose release test checks the source being released instead
+  of the previously installed build
+
+### Fixed
+
+- A lint warning for an unused variable in the error handling of the server request code
+
+<!-- <END NEW CHANGELOG ENTRY> -->
+
 ## [1.0.2] - 2026-09-25
 
 ### Changed
@@ -24,8 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server's terminal list
 - A paste into a folder the server cannot write names the folder and the reason instead of
   "Unhandled error"
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## [1.0.1] - 2026-09-21
 

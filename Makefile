@@ -1,5 +1,9 @@
-# Makefile for Jupyterlab extensions version 1.42
+# Makefile for Jupyterlab extensions version 1.43
 # changelog:
+#   1.43 - the auth gate in `test` loads the source tree being released, not the wheel
+#          the last `make install` left in site-packages: `python script.py` puts only
+#          the script's own directory on sys.path, and `publish` runs `test` before
+#          `install`, so the gate checked the previous build.
 #   1.42 - increment_version moves from `publish` onto `install`, so every
 #          `make install` raises the patch version again, as it did through 1.40.
 #          `publish` reaches it through `install` and still raises it exactly once;
@@ -185,7 +189,7 @@ test: check_dependencies
 	fi
 	@if [ -f ".github/scripts/check_auth.py" ] && [ -d "$(PYTHON_NAME)/tests" ]; then \
 		echo "Checking every endpoint requires authentication..."; \
-		python .github/scripts/check_auth.py; \
+		PYTHONPATH=$(CURDIR) python .github/scripts/check_auth.py; \
 	else \
 		echo "test: no .github/scripts/check_auth.py - skipping the auth gate"; \
 	fi
