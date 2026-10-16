@@ -7,6 +7,7 @@ except ImportError:
     import warnings
     warnings.warn("Importing 'jupyterlab_advanced_paste_content_extension' outside a proper installation.")
     __version__ = "dev"
+from .config import PasteClippingsConfig
 from .routes import setup_route_handlers
 
 
@@ -31,6 +32,10 @@ def _load_jupyter_server_extension(server_app):
     server_app: jupyterlab.labapp.LabApp
         JupyterLab application instance
     """
-    setup_route_handlers(server_app.web_app)
+    config = PasteClippingsConfig(parent=server_app)
+    setup_route_handlers(server_app.web_app, config=config)
     name = "jupyterlab_advanced_paste_content_extension"
     server_app.log.info(f"Registered {name} server extension")
+    # Named because a clipping is written outside the file browser's view, so
+    # the folder is the only way to find it without reading the config.
+    server_app.log.info(f"Terminal clippings are written to {config.clippings_dir}")

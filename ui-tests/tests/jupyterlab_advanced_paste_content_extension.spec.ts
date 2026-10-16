@@ -2,6 +2,38 @@ import { expect, test } from '@jupyterlab/galata';
 import { Page } from '@playwright/test';
 
 /**
+ * Wait until the file browser has reached the folder the page URL names,
+ * instead of galata's default, which waits for the Launcher tab to be active.
+ *
+ * A lab carrying other extensions can open a different tab at start - this
+ * workstation opens a Welcome tab - and the default then times out in every
+ * test. Waiting for the shell alone is too early: the folder in the
+ * `/lab/tree/<folder>` URL is applied about a second later, and it undoes any
+ * navigation galata starts in that window, which leaves `openByPath` searching
+ * a listing that is no longer shown.
+ */
+test.use({
+  waitForApplication: async ({ baseURL }, use) => {
+    await use(async page => {
+      await page.locator('#jupyterlab-splash').waitFor({ state: 'detached' });
+      await page.waitForFunction(() => {
+        const match = decodeURIComponent(window.location.pathname).match(
+          /\/tree\/(.*?)\/?$/
+        );
+        const wanted = match ? match[1] : '';
+        const crumbs = document.querySelectorAll(
+          '.jp-FileBrowser .jp-BreadCrumbs-container .jp-BreadCrumbs-item'
+        );
+        const current = crumbs.length
+          ? (crumbs[crumbs.length - 1].getAttribute('data-path') ?? '')
+          : '';
+        return !!(window as any).jupyterapp?.shell && current === wanted;
+      });
+    });
+  }
+});
+
+/**
  * A notebook carrying one markdown cell and one code cell.
  *
  * Built through the contents API rather than galata's createNew, which drives
@@ -172,7 +204,7 @@ async function shellOutput(page: Page): Promise<string> {
 }
 
 test.describe('terminal surface', () => {
-  test('a bitmap pasted into a terminal lands in the file browser folder and the shell reaches it', async ({
+  test('a bitmap pasted into a terminal lands in the clippings folder and the shell reaches it', async ({
     page,
     tmpPath
   }) => {
@@ -180,7 +212,9 @@ test.describe('terminal surface', () => {
     await page.contents.createDirectory(`${tmpPath}/shell`);
     await page.filebrowser.openDirectory(`${tmpPath}/browser`);
 
-    // The shell sits in a sibling of the folder the file browser shows.
+    // The shell sits in a sibling of the folder the file browser shows. A
+    // clipping is written outside the workspace altogether, so neither folder
+    // may influence the path the shell receives.
     // The command resolves to the widget, which cannot cross back to the test.
     await page.evaluate(async cwd => {
       await (window as any).jupyterapp.commands.execute('terminal:create-new', {
@@ -202,16 +236,20 @@ test.describe('terminal surface', () => {
     await page.keyboard.type('test -f ');
     await pasteBitmap(page);
 
-    // The file lands beside the file browser, so the shell gets a path that
-    // climbs out of its own folder to reach it.
+    // The clipping folder sits outside the workspace, so the shell is handed
+    // an absolute path, which resolves from whatever directory it is in.
     await expect
       .poll(async () => shellOutput(page), { timeout: 15000 })
-      .toMatch(/test -f \.\.\/browser\/paste-[0-9]{8}-[0-9]{6}\.png/);
+      .toMatch(
+        /test -f \/tmp\/jupyterlab-paste-e2e-clippings\/paste-[0-9]{8}-[0-9]{6}\.png/
+      );
     const name = (await shellOutput(page)).match(
-      /\.\.\/browser\/(paste-[0-9]{8}-[0-9]{6}\.png)/
+      /(paste-[0-9]{8}-[0-9]{6}\.png)/
     )![1];
 
     // The echo shows the command, not its result, so the result is computed.
+    // It is also the only way to reach the file: the folder is outside the
+    // workspace, so the contents API cannot see it.
     await page.keyboard.type(' && echo FOUND-$((40+2))');
     await page.keyboard.press('Enter');
     await expect
@@ -219,7 +257,7 @@ test.describe('terminal surface', () => {
       .toContain('FOUND-42');
 
     expect(await page.contents.fileExists(`${tmpPath}/browser/${name}`)).toBe(
-      true
+      false
     );
     expect(await page.contents.fileExists(`${tmpPath}/shell/${name}`)).toBe(
       false

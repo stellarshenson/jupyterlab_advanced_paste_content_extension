@@ -225,106 +225,120 @@ async def test_concurrent_same_name_writes_do_not_overwrite(jp_fetch, jp_root_di
     assert written == sorted([base64.b64decode(PNG), base64.b64decode(OTHER)])
 
 
-async def _open_terminal(jp_fetch, cwd):
-    response = await jp_fetch(
-        "api", "terminals", method="POST", body=json.dumps({"cwd": str(cwd)})
-    )
-    return json.loads(response.body)["name"]
+def _empty(folder):
+    for entry in folder.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            _empty(entry)
+            entry.rmdir()
+        else:
+            entry.unlink()
 
 
-async def _terminal_names(jp_fetch):
-    response = await jp_fetch("api", "terminals", method="GET")
-    return [terminal["name"] for terminal in json.loads(response.body)]
-
-
-async def test_a_terminal_paste_lands_in_the_folder_named_not_the_shell_folder(
-    jp_fetch, jp_root_dir
+async def test_a_clipping_lands_in_the_clippings_folder_not_the_named_one(
+    jp_fetch, jp_root_dir, clippings_dir
 ):
-    (jp_root_dir / "browser").mkdir()
-    (jp_root_dir / "shell").mkdir()
-    name = await _open_terminal(jp_fetch, jp_root_dir / "shell")
+    _empty(clippings_dir)
+    (jp_root_dir / "browser").mkdir(exist_ok=True)
 
-    payload = await write(
-        jp_fetch, folder="browser", filename="a b.png", content_base64=PNG, terminal=name
-    )
-
-    assert (jp_root_dir / "browser" / "a b.png").exists()
-    assert not (jp_root_dir / "shell" / "a b.png").exists()
-    assert payload["terminal_path"] == os.path.join("..", "browser", "a b.png")
-
-
-async def test_the_terminal_path_resolves_from_a_shell_outside_the_root(
-    jp_fetch, jp_root_dir
-):
-    outside = jp_root_dir.parent / "outside"
-    outside.mkdir()
-    name = await _open_terminal(jp_fetch, outside)
-
-    payload = await write(
-        jp_fetch, folder="", filename="a.png", content_base64=PNG, terminal=name
-    )
-
-    assert not os.path.isabs(payload["terminal_path"])
-    reached = os.path.join(os.path.realpath(outside), payload["terminal_path"])
-    assert os.path.realpath(reached) == os.path.realpath(jp_root_dir / "a.png")
-
-
-async def test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell(
-    jp_fetch, jp_root_dir
-):
     payload = await write(
         jp_fetch,
-        folder="",
-        filename="a.png",
+        folder="browser",
+        filename="a b.png",
         content_base64=PNG,
-        terminal="no-such-terminal",
+        clippings=True,
     )
 
-    # terminado's get_terminal is get-or-create: this is the assertion that
-    # fails if the lookup ever goes back through it.
-    assert "no-such-terminal" not in await _terminal_names(jp_fetch)
-    assert payload["terminal_path"] == os.path.join(
-        os.path.realpath(jp_root_dir), "a.png"
+    assert (clippings_dir / "a b.png").exists()
+    assert not (jp_root_dir / "browser" / "a b.png").exists()
+    # Absolute, because a shell resolves it from whatever directory it is in.
+    assert payload["terminal_path"] == str(clippings_dir / "a b.png")
+
+
+async def test_a_write_that_is_not_a_clipping_still_uses_the_named_folder(
+    jp_fetch, jp_root_dir
+):
+    """A notebook cell or a file editor is untouched by the clippings path."""
+    (jp_root_dir / "work").mkdir(exist_ok=True)
+
+    payload = await write(
+        jp_fetch, folder="work", filename="a.png", content_base64=PNG
     )
 
+    assert (jp_root_dir / "work" / "a.png").exists()
+    assert "terminal_path" not in payload
 
-def test_terminal_cwd_is_none_without_a_terminal_manager():
+
+async def test_the_clippings_folder_is_created_when_it_is_missing(
+    jp_fetch, clippings_dir
+):
+    _empty(clippings_dir)
+    clippings_dir.rmdir()
+    assert not clippings_dir.exists()
+
+    await write(
+        jp_fetch, folder="", filename="a.png", content_base64=PNG, clippings=True
+    )
+
+    assert (clippings_dir / "a.png").exists()
+
+
+async def test_a_symlinked_clippings_folder_is_followed_to_its_target(
+    jp_fetch, clippings_dir
+):
+    """The documented way to keep clippings: point the folder at ~/.cache.
+
+    The target is deliberately left uncreated, because a user who sets the
+    symlink up first must not get a silent fallback to the file browser's
+    folder.
+    """
+    _empty(clippings_dir)
+    clippings_dir.rmdir()
+    target = clippings_dir.parent / "persistent-clippings"
+    clippings_dir.symlink_to(target, target_is_directory=True)
+
+    payload = await write(
+        jp_fetch, folder="", filename="a.png", content_base64=PNG, clippings=True
+    )
+
+    assert (target / "a.png").exists()
+    assert payload["terminal_path"] == str(target / "a.png")
+
+
+def test_clippings_folder_is_none_for_a_path_that_cannot_be_a_directory(tmp_path):
     from jupyterlab_advanced_paste_content_extension import routes
 
-    assert routes._terminal_cwd(None, "1") is None
+    blocker = tmp_path / "a-file"
+    blocker.write_text("not a directory")
+
+    assert routes._clippings_folder("") is None
+    assert routes._clippings_folder(str(blocker / "under-a-file")) is None
 
 
-def test_the_terminal_path_follows_a_nested_shell(tmp_path):
-    """The directory that counts is the foreground process's, not the pty's first."""
-    import time
-    from types import SimpleNamespace
+def test_clippings_folder_refuses_a_directory_this_process_does_not_own(
+    tmp_path, monkeypatch
+):
+    """The default name is fixed and the temporary directory is world-writable.
 
-    from ptyprocess import PtyProcessUnicode
-
+    Another user can therefore create the folder before the server does and read
+    every clip written into it. The ownership test is what refuses that.
+    """
     from jupyterlab_advanced_paste_content_extension import routes
 
-    outer = tmp_path / "outer"
-    inner = outer / "deep"
-    browser = tmp_path / "browser"
-    inner.mkdir(parents=True)
-    browser.mkdir()
+    target = tmp_path / "someone-elses"
+    target.mkdir()
+    real_uid = os.getuid()
+    monkeypatch.setattr(routes.os, "getuid", lambda: real_uid + 1)
 
-    shell = PtyProcessUnicode.spawn(["bash", "--norc", "-i"], cwd=str(outer))
-    manager = SimpleNamespace(terminals={"t": SimpleNamespace(ptyproc=shell)})
-    try:
-        shell.write("bash --norc -i\n")
-        shell.write(f"cd '{inner}'\n")
-        deadline = time.monotonic() + 5
-        while routes._terminal_cwd(manager, "t") != str(inner.resolve()):
-            assert time.monotonic() < deadline, "the nested shell never reached the folder"
-            time.sleep(0.05)
+    assert routes._clippings_folder(str(target)) is None
 
-        path = routes._terminal_path(manager, "t", str(browser), "a b.png")
 
-        # outer and deep sit at different depths, so a path computed from the
-        # pty's first process would not resolve from where the user is.
-        assert os.path.realpath(os.path.join(inner, path)) == str(
-            (browser / "a b.png").resolve()
-        )
-    finally:
-        shell.terminate(force=True)
+def test_clippings_folder_resolves_and_creates_the_directory(tmp_path):
+    from jupyterlab_advanced_paste_content_extension import routes
+
+    target = tmp_path / "made" / "on" / "demand"
+
+    assert routes._clippings_folder(str(target)) == str(target)
+    assert target.is_dir()
+    # Group and other have no access: the temporary directory is world-writable,
+    # so the folder is not shared with everyone who can list it.
+    assert target.stat().st_mode & 0o077 == 0

@@ -134,3 +134,6 @@ logs/
 tmp/
 graphify-out/
 junit.xml
+
+# Throwaway local E2E config - the shipped one hardcodes a port this workstation holds
+ui-tests/playwright.local.config.js

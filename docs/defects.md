@@ -200,6 +200,16 @@ The jest, pytest and galata suites and what they actually prove
   - log: 2026-09-20T18:04:13Z @kj added
   - log: 2026-09-20T18:08:38Z @kj both assertions rewritten to assert positives: the code-cell test now asserts the plain-text flavour is present rather than that markup is absent, and the bitmap test reads the filename the extension chose out of the cell and asserts that exact file exists rather than asserting a prefix is defined. Two further cases added. NOT closed: the suite has still never been executed, so the fix is inspected, not proven
   - log: 2026-09-20T18:23:39Z @kj closed: both assertions rewritten to positives and the suite executed
+- [x] `DEF-TEST-34` **Galata suite fails every test in a local run** - MAJOR; all five end-to-end tests fail with "Timed out waiting for condition to be fulfilled" at galata utils.ts:200, including four notebook tests that predate the clippings change, so the failure is in the harness rather than in the extension
+  - evidence: spec overrides waitForApplication to wait for the file browser to reach the URL folder; the galata suite then ran 5 passed in 30.7s
+  - test-tags: E2E
+  - repro: cd ui-tests && jlpm playwright test --config playwright.local.config.js
+  - root-cause: 2026-10-16T05:47:59Z @kj galata waitForApplication waits for the Launcher tab to be active; this lab opens a Welcome tab, so every test timed out in setup. Waiting for the shell alone raced the /lab/tree URL, applied about one second later, which undid galata navigation
+  - root-cause: 2026-10-16T04:31:53Z @kj not established; the captured page snapshot shows the lab still on the Launcher, so page.notebook.openByPath in the beforeEach never completed. No kernel dialog appears in the server log and no jp-Dialog is present in the snapshot
+  - log: 2026-10-16T04:31:53Z @kj added; reason: raised while verifying the clippings feature; ACC-TERM-22 and ACC-TERM-23 stay open because their E2E assertion has not run
+  - log: 2026-10-16T05:47:59Z @kj root-cause overridden; reason: replaces the earlier not-established record
+  - log: 2026-10-16T05:47:59Z @kj edited test-tags added "E2E"
+  - log: 2026-10-16T05:47:59Z @kj closed
 
 ## Build and Release `BUILD`
 

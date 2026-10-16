@@ -32,11 +32,12 @@ interface ITarget {
   /** Returns false when the surface has gone away and the text did not land. */
   insert: (text: string) => boolean;
   /**
-   * Terminal name, on the terminal surface only. The server reads the shell's
-   * working directory from it and answers the path the shell reaches the file
-   * by, because the frontend cannot read that directory.
+   * Set on the terminal surface only. A paste into a terminal has no document
+   * to anchor a reference to, so the server writes it into the clippings folder
+   * rather than the folder named above, and answers the absolute path the shell
+   * reaches it by.
    */
-  terminal?: string;
+  clippings?: boolean;
 }
 
 function toBase64(buffer: ArrayBuffer): string {
@@ -117,11 +118,12 @@ const plugin: JupyterFrontEndPlugin<void> = {
         const session = terminals.currentWidget.content.session;
         return {
           surface: 'terminal',
-          // The folder the user is looking at, not the shell's: the shell is
-          // handed a path to the file instead of its bare name.
+          // Only the fallback folder: the server writes a clipping into its own
+          // folder and answers the absolute path, and reaches for this one when
+          // that folder is unavailable.
           folder: browser.model.path,
+          clippings: true,
           host: terminals.currentWidget.content.node,
-          terminal: session.name,
           insert: text => {
             session.send({ type: 'stdin', content: [text] });
             return true;
@@ -147,7 +149,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
         target.folder,
         filename,
         toBase64(buffer),
-        target.terminal
+        target.clippings
       );
       return referenceFor(
         target.surface,

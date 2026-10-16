@@ -16,6 +16,9 @@ paste is left alone.
 A screenshot pasted into a markdown cell becomes a PNG on disk plus an image link. A copied file
 becomes a copy in the current folder. Text stays text.
 
+A terminal has no document to give the file a home, so a paste into one becomes a clipping: the file
+is written into a clippings folder of its own and the shell receives its absolute path.
+
 ## Features
 
 - **Screenshots become files** - a pasted bitmap is written as PNG named `paste-20260920-191530.png`
@@ -26,8 +29,9 @@ becomes a copy in the current folder. Text stays text.
   a code cell so it drops into `plt.imread()`, the bare name in a text file
 - **Rich HTML becomes markdown** - only on the two surfaces that render it; a text file, a code cell
   and a terminal take the plain-text flavour, which is what a normal paste already gives them
-- **A terminal gets a path it can use** - the file lands in the folder the file browser shows, and the
-  terminal receives the path to it from the shell's own working directory, escaped for the shell;
+- **A terminal gets a clipping** - a file or image pasted into a terminal is written into the
+  clippings folder, `/tmp/jupyterlab-paste-clippings` by default, and the terminal receives the
+  absolute path to it, escaped for the shell, so it resolves wherever the shell has changed into;
   Claude Code and the other AI assistant terminals included
 - **Nothing is written twice** - an identical payload references the file already in the folder, and
   a name clash never overwrites
@@ -36,6 +40,31 @@ becomes a copy in the current folder. Text stays text.
 
 The full behaviour of every content type on every surface is in
 [docs/design-content-types.md](docs/design-content-types.md).
+
+## Configuration
+
+The clippings folder is where a paste into a terminal writes. It defaults to
+`/tmp/jupyterlab-paste-clippings` and is set in `jupyter_server_config.py`:
+
+```python
+c.PasteClippingsConfig.clippings_dir = "/srv/clippings"
+```
+
+A clipping is treated like clipboard content and is not expected to survive a reboot, which is why
+the default sits in the temporary directory. To keep them, put the folder anywhere and point the
+default name at it:
+
+```bash
+mkdir -p ~/.cache/jupyterlab-paste-clippings
+ln -s ~/.cache/jupyterlab-paste-clippings /tmp/jupyterlab-paste-clippings
+```
+
+The symlink is followed, so clips land in the folder under your home directory and outlive the
+temporary directory being cleared.
+
+When the configured folder cannot be created, or resolves to one this server does not own, the paste
+is written into the folder the file browser shows instead. A paste never fails because of the
+clippings folder.
 
 ## Requirements
 

@@ -155,6 +155,7 @@ Pastes carrying a real file copied from a file manager
 where a paste into a terminal is written and what path the shell receives
 
 - [x] `ACC-TERM-19` **Written into the file browser folder** - HIGH; a screenshot or a file pasted into a terminal is written into the folder the file browser shows, whatever folder the shell is in; the terminals the AI assistant panels open are terminals of the same kind and behave the same
+  - overridden-by: ACC-TERM-22
   - evidence: galata terminal test asserts the pasted file exists in the file browser folder and not in the shell folder; pytest test_a_terminal_paste_lands_in_the_folder_named_not_the_shell_folder asserts the same against a real terminal; 24 pytest, 5 E2E green
   - test: cd a terminal into another folder, paste a screenshot, assert the file exists in the file browser folder and not in the shell folder
   - test-tags: UNIT, E2E
@@ -162,6 +163,7 @@ where a paste into a terminal is written and what path the shell receives
   - log: 2026-09-24T23:36:09Z @kj added
   - log: 2026-09-25T00:12:42Z @kj closed
 - [x] `ACC-TERM-20` **Path relative to the shell** - HIGH; the terminal receives the path of the written file relative to the shell's working directory, shell-escaped, so ls on it succeeds at the prompt; this holds when the shell is outside the server root
+  - overridden-by: ACC-TERM-23
   - evidence: galata: test -f on the inserted ../browser/paste-*.png at a real bash prompt prints FOUND-42; pytest asserts ../browser/a b.png from a real terminal, a relative path from a shell outside the root, and the nested-shell case; 24 pytest, 5 E2E green
   - test: cd a terminal into a sibling folder, paste a screenshot, run ls on the inserted text, assert it lists the file
   - test-tags: UNIT, E2E
@@ -170,9 +172,57 @@ where a paste into a terminal is written and what path the shell receives
   - log: 2026-09-25T00:12:42Z @kj closed
   - log: 2026-09-25T00:12:50Z @kj adversarial review (architect, ux-designer, bug-hunter, slop-hunter): round 1 found the nested-shell case, filed and fixed as DEF-PASTE-32; round 2 pinned confirm clean (SHIP)
 - [x] `ACC-TERM-21` **Edge: shell folder unreadable** - MEDIUM; when the terminal named in the write is no longer running, or the working directory of the process its user types into cannot be read, the file is still written and the answer carries the absolute path, which an open terminal receives; no terminal is started
+  - overridden-by: ACC-TERM-24
   - evidence: pytest test_an_unknown_terminal_gets_the_absolute_path_and_starts_no_shell asserts the absolute path and no new terminal; test_terminal_cwd_is_none_without_a_terminal_manager; an unreadable /proc directory takes the same None branch and is not simulated; 24 pytest green
   - test: POST a write naming a terminal that does not exist, assert the absolute path comes back and no terminal was created
   - test-tags: UNIT
   - log: 2026-09-24T23:36:09Z @kj added
   - log: 2026-09-25T00:04:52Z @kj edited text "when the terminal is no longer running or its working directory cannot be read, the file is still written and the terminal receives its absolute path; no terminal is started" -> "when the terminal named in the write is no longer running, or the working directory of the process its user types into cannot be read, the file is still written and the answer carries the absolute path, which an open terminal receives; no terminal is started"
   - log: 2026-09-25T00:12:42Z @kj closed
+- [x] `ACC-TERM-22` **Written into the clippings folder** - HIGH; a file or image pasted into a terminal is written into the clippings folder, not into the folder the file browser shows
+  - evidence: galata terminal test passed in a 5-passed run: the bitmap landed in /tmp/jupyterlab-paste-e2e-clippings, absent from both workspace folders; pytest half passed earlier
+  - overrides: ACC-TERM-19
+  - test: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one, and the galata terminal test asserts the same file is absent from both workspace folders
+  - test-tags: UNIT, E2E
+  - mechanism: 2026-10-16T04:27:29Z @kj the frontend marks the write a clipping; the server resolves the folder from PasteClippingsConfig and ignores the folder named in the request for that write
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:31:57Z @kj note; reason: E2E half not run: the galata suite fails every test in this environment (DEF-TEST-34); the pytest half passed
+  - log: 2026-10-16T05:47:46Z @kj closed
+- [x] `ACC-TERM-23` **The shell receives an absolute path** - HIGH; the path inserted at the terminal prompt is absolute, so it resolves from whatever directory the shell has changed into
+  - evidence: galata terminal test passed: a real bash in an unrelated folder received the absolute clippings path and test -f on it printed FOUND-42
+  - overrides: ACC-TERM-20
+  - test: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one asserts terminal_path equals the absolute file path; the galata test runs test -f on it from a shell in an unrelated directory
+  - test-tags: UNIT, E2E
+  - mechanism: 2026-10-16T04:27:29Z @kj the file is written outside the workspace, so no relative path from the shell can be short enough to be worth computing; the server answers the joined absolute path and reads no shell working directory
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:31:57Z @kj note; reason: E2E half not run: the galata suite fails every test in this environment (DEF-TEST-34); the pytest half passed
+  - log: 2026-10-16T05:47:46Z @kj closed
+- [x] `ACC-TERM-24` **Edge: clippings folder unusable** - MEDIUM; when the clippings folder cannot be created or resolved, the paste is written into the folder named in the request instead, and the absolute path is still returned; the paste never fails for this reason
+  - evidence: pytest test_clippings_folder_is_none_for_a_path_that_cannot_be_a_directory and test_a_write_that_is_not_a_clipping_still_uses_the_named_folder both passed in a 26-passed run
+  - overrides: ACC-TERM-21
+  - test: pytest test_clippings_folder_is_none_for_a_path_that_cannot_be_a_directory and test_a_write_that_is_not_a_clipping_still_uses_the_named_folder
+  - test-tags: UNIT
+  - mechanism: 2026-10-16T04:27:29Z @kj _clippings_folder returns None on any OSError and the handler then takes the existing confined-folder path
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:27:52Z @kj closed
+- [x] `ACC-TERM-25` **Edge: symlink whose target does not exist yet** - HIGH; a clippings folder that is a symlink is followed, and when its target does not exist the target is created and the clipping written there, so pointing the default name at a folder under the home directory is how clips are kept across a reboot
+  - evidence: pytest test_a_symlinked_clippings_folder_is_followed_to_its_target passed: the symlink target was created and held the clipping
+  - test: pytest test_a_symlinked_clippings_folder_is_followed_to_its_target creates the symlink with its target absent and asserts the file lands in the target
+  - test-tags: UNIT
+  - mechanism: 2026-10-16T04:27:29Z @kj the configured path is resolved with realpath before makedirs, so a dangling symlink yields the target path rather than a FileExistsError
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:27:52Z @kj closed
+- [x] `ACC-TERM-26` **Edge: clippings folder owned by another user** - HIGH; a clippings folder whose resolved directory is not owned by the server process is refused, because the default name is fixed and the temporary directory is world-writable, so another user could otherwise create it first and read every clip
+  - evidence: pytest test_clippings_folder_refuses_a_directory_this_process_does_not_own passed: a patched uid made the folder refused
+  - test: pytest test_clippings_folder_refuses_a_directory_this_process_does_not_own patches os.getuid and asserts None
+  - test-tags: UNIT
+  - mechanism: 2026-10-16T04:27:29Z @kj _clippings_folder compares st_uid of the resolved directory against os.getuid and returns None on a mismatch, which falls through to the confined folder
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:27:52Z @kj closed
+- [x] `ACC-TERM-27` **Clippings folder is configurable** - MEDIUM; the clippings folder is read from PasteClippingsConfig.clippings_dir, defaulting to /tmp/jupyterlab-paste-clippings, so an operator can move it without a code change
+  - evidence: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one passed against the non-default folder conftest sets in PasteClippingsConfig
+  - test: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one passes against the folder conftest sets in PasteClippingsConfig, which is not the default, so the value is read from configuration
+  - test-tags: UNIT
+  - mechanism: 2026-10-16T04:27:29Z @kj a traitlets Configurable is instantiated with parent=server_app in _load_jupyter_server_extension and stored on web_app.settings
+  - log: 2026-10-16T04:27:29Z @kj added
+  - log: 2026-10-16T04:27:52Z @kj closed

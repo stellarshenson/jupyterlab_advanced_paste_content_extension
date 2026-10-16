@@ -59,6 +59,10 @@ def _write_new(folder, filename, data):
     refuses a symlink at the final component outright. Testing the name with
     os.path.exists first, as this did, was blind to a dangling symlink and the
     write then followed it outside the server root.
+
+    O_NOFOLLOW covers the last component alone, so a symlink standing in for a
+    directory on the way is followed. That is what lets the clippings folder be
+    a symlink into a directory the user keeps.
     """
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
     stem, ext = os.path.splitext(filename)
@@ -76,44 +80,40 @@ def _write_new(folder, filename, data):
         return candidate
 
 
-def _terminal_cwd(terminal_manager, name):
-    """Return the working directory of the process a terminal's user types into.
+def _clippings_folder(directory):
+    """Create and return the folder a terminal paste writes into, or None.
 
-    Only the server can answer this: the frontend has no API for a terminal's
-    cwd. The terminal is looked up in the manager's table, never through
-    get_terminal - terminado's get_terminal is get-or-create, and would start a
-    shell for any name a request carries.
+    The path comes from this extension's own configuration, never from a
+    request, so the server-root confinement that guards a client-named folder
+    does not apply to it. Confinement exists to stop a request naming a path
+    outside the root; nothing here is request-named.
 
-    Returns None when the terminal is not running, the platform has no /proc,
-    or the foreground process's directory cannot be read.
+    The path is resolved before it is created. Clippings are meant to be
+    disposable, so the default sits in the temporary directory, and the
+    documented way to keep them is a symlink from that name to a folder under
+    the user's home. Resolving first means a symlink whose target does not exist
+    yet creates the target, instead of failing and silently falling back.
+
+    Returns None when the folder cannot be created, or resolves to a directory
+    this process does not own. The temporary directory is world-writable, so
+    with a fixed default name another user could create the folder ahead of the
+    server and read every clip written into it; the ownership test refuses that.
+    A symlink into a directory the user owns resolves to one they own and
+    passes.
     """
-    terminals = getattr(terminal_manager, "terminals", None) or {}
-    try:
-        pid = terminals[name].ptyproc.pid
-        # After a nested shell (bash, sudo -s, nix-shell) the pty's first
-        # process keeps its old directory; the user types into the foreground
-        # process group, whose leader is field 8 (tpgid) of /proc/<pid>/stat.
-        with open(os.path.join("/proc", str(pid), "stat")) as stat:
-            pid = stat.read().rsplit(")", 1)[1].split()[5]
-        cwd = os.path.realpath(os.path.join("/proc", str(pid), "cwd"))
-    except Exception:
+    if not directory:
         return None
-    return cwd if os.path.isdir(cwd) else None
-
-
-def _terminal_path(terminal_manager, name, folder, filename):
-    """The path a terminal's shell uses to reach filename in folder.
-
-    Relative to the shell's working directory, as the drag-and-drop path
-    extension inserts it; absolute when that directory cannot be read, because
-    an absolute path resolves from any folder. /proc reports the shell's
-    directory with symlinks resolved, so the folder is resolved too: under a
-    symlinked server root the path would otherwise climb to / and come back
-    down through the link.
-    """
-    path = os.path.join(os.path.realpath(folder), filename)
-    cwd = _terminal_cwd(terminal_manager, name)
-    return path if cwd is None else os.path.relpath(path, cwd)
+    try:
+        resolved = os.path.realpath(directory)
+        os.makedirs(resolved, mode=0o700, exist_ok=True)
+        if not os.path.isdir(resolved):
+            return None
+        getuid = getattr(os, "getuid", None)
+        if getuid is not None and os.stat(resolved).st_uid != getuid():
+            return None
+    except OSError:
+        return None
+    return resolved
 
 
 def _store(folder, filename, data):
@@ -147,13 +147,27 @@ class WriteRouteHandler(APIHandler):
 
         root = os.path.abspath(self.contents_manager.root_dir)
 
-        target_folder = os.path.abspath(os.path.join(root, folder))
-        # commonpath, not a string prefix: with root "/" the prefix would be "//"
-        # and every path under it would be refused.
-        if os.path.commonpath([root, target_folder]) != root:
-            raise tornado.web.HTTPError(400, "folder is outside the server root")
-        if not os.path.isdir(target_folder):
-            raise tornado.web.HTTPError(404, f"folder {folder or '/'} does not exist")
+        # A paste into a terminal has no document to anchor a reference to, so
+        # the file it writes is a clipping: it belongs in this extension's own
+        # folder rather than the one the file browser shows. Every other surface
+        # still names the folder it wants, and that name still has to be inside
+        # the server root. When the clipping folder is unavailable the named
+        # folder is used instead, so a paste degrades rather than fails.
+        config = self.settings.get("paste_clippings_config")
+        target_folder = None
+        if body.get("clippings"):
+            target_folder = _clippings_folder(
+                getattr(config, "clippings_dir", "") if config else ""
+            )
+
+        if target_folder is None:
+            target_folder = os.path.abspath(os.path.join(root, folder))
+            # commonpath, not a string prefix: with root "/" the prefix would be
+            # "//" and every path under it would be refused.
+            if os.path.commonpath([root, target_folder]) != root:
+                raise tornado.web.HTTPError(400, "folder is outside the server root")
+            if not os.path.isdir(target_folder):
+                raise tornado.web.HTTPError(404, f"folder {folder or '/'} does not exist")
 
         try:
             data = base64.b64decode(content_base64, validate=True)
@@ -167,22 +181,21 @@ class WriteRouteHandler(APIHandler):
                 None, _store, target_folder, filename, data
             )
         except OSError as error:
+            # The folder actually attempted, which on a clipping is not the one
+            # the request named.
             raise tornado.web.HTTPError(
-                500, f"could not write into {folder or '/'}: {error.strerror}"
+                500, f"could not write into {target_folder}: {error.strerror}"
             ) from error
         answer = {"filename": written, "reused": reused}
-        # A paste into a terminal is written into the folder the file browser
-        # shows, which the shell is usually not in, so the terminal needs a path
-        # to the file rather than its bare name.
-        terminal = body.get("terminal")
-        if terminal:
-            answer["terminal_path"] = _terminal_path(
-                self.settings.get("terminal_manager"), terminal, target_folder, written
-            )
+        # The shell is handed an absolute path, which it resolves from whatever
+        # directory it has changed into. No terminal needs to be consulted, and
+        # no shell's working directory needs to be read.
+        if body.get("clippings"):
+            answer["terminal_path"] = os.path.join(target_folder, written)
         self.finish(json.dumps(answer))
 
 
-def setup_route_handlers(web_app):
+def setup_route_handlers(web_app, config=None):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
@@ -190,3 +203,4 @@ def setup_route_handlers(web_app):
     handlers = [(write_route_pattern, WriteRouteHandler)]
 
     web_app.add_handlers(host_pattern, handlers)
+    web_app.settings["paste_clippings_config"] = config

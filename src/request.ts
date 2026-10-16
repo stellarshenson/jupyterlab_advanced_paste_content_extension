@@ -58,8 +58,9 @@ export interface IWriteResult {
   filename: string;
   reused: boolean;
   /**
-   * On a write that named a terminal: the path the shell reaches the file by,
-   * relative to its working directory, or absolute when that could not be read.
+   * On a clipping write: the absolute path of the file, which is what the
+   * shell receives. Absolute because a shell resolves it from whatever
+   * directory it has changed into.
    */
   terminal_path?: string;
 }
@@ -76,7 +77,7 @@ export async function writeFile(
   folder: string,
   filename: string,
   contentBase64: string,
-  terminal?: string
+  clippings?: boolean
 ): Promise<IWriteResult> {
   return requestAPI<IWriteResult>('write', serverSettings, {
     method: 'POST',
@@ -84,9 +85,11 @@ export async function writeFile(
       folder,
       filename,
       content_base64: contentBase64,
-      // Naming the terminal lets the server answer the path relative to the
-      // shell's working directory, which the frontend has no way to read.
-      ...(terminal ? { terminal } : {})
+      // A terminal paste is a clipping: the server writes it into its own
+      // folder and answers the absolute path the shell reaches it by. The
+      // folder named above is only the fallback for when that folder is
+      // unavailable, so it is still sent.
+      ...(clippings ? { clippings: true } : {})
     })
   });
 }

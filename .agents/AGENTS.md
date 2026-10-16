@@ -125,7 +125,17 @@ The Makefile has no E2E target, so this is the one lifecycle step outside it.
 - `ui-tests/playwright.config.js` hardcodes port 8888, which this workstation's own JupyterLab
   holds. Run with a throwaway config on another port rather than pointing the suite at a live lab -
   the tests create notebooks and write files into whatever workspace they reach
-- Kill the test server afterwards; a stale one holds the port and the next run fails to start
+- Kill the test server afterwards; a stale one holds the port and the next run fails to start. `ss`
+  can report the port free while the server still answers; find it with
+  `ps -eo pid,cmd | grep jupyter_server_test_config` and kill that pid
+- The throwaway config is `ui-tests/playwright.local.config.js` (port 8899, gitignored); run with
+  `jlpm playwright test --config playwright.local.config.js`
+- A container restart returns `/opt/conda` and `/galaxalab` to the image. Run `make install` before
+  the suite, or it tests the image's older build of this extension. Install the browser with
+  `PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright-ui-tests` and pass the same variable to the
+  test run: `/galaxalab/ms-playwright` is reset, and `~/.cache/ms-playwright/.links` is owned by root
+- The spec overrides galata's `waitForApplication`. The default waits for the Launcher tab, and this
+  lab opens a Welcome tab at start, so every test timed out in setup
 - Build the notebook through `page.contents.uploadContent` and open it with `notebook.openByPath`.
   Galata's `notebook.createNew` drives the File menu and then blocks on a kernel dialog, which does
   not appear on a lab carrying other extensions - `nb_venv_kernels` alone swaps the kernel spec
