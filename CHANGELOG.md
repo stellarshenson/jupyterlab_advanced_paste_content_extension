@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.6] - 2026-10-16
+
+### Added
+
+- A file or image pasted into a terminal is written into a clippings folder, set by
+  `c.PasteClippingsConfig.clippings_dir` and `/tmp/jupyterlab-paste-clippings` by default. The
+  folder is created with mode 700, a symlink at that name is followed to its target so clips can be
+  kept under the home folder, and a folder owned by another user is refused
+
+### Changed
+
+- A terminal receives the absolute path of the clipping, so the shell's working directory no longer
+  matters. A paste into the file browser, a notebook or a file editor still writes into the
+  document's own folder
+- When the clippings folder cannot be used, a terminal paste falls back to the folder the file
+  browser shows
+- The build Makefile is at version 1.46, and the lockfile resolves dependencies to their newest
+  releases inside the version ranges `package.json` declares
+
+### Fixed
+
+- The end-to-end tests no longer time out at start in a JupyterLab that opens a tab other than the
+  Launcher
+
+<!-- <END NEW CHANGELOG ENTRY> -->
+
 ## [1.0.3] - 2026-09-25
 
 ### Changed
@@ -19,8 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A lint warning for an unused variable in the error handling of the server request code
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## [1.0.2] - 2026-09-25
 
