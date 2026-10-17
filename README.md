@@ -30,7 +30,7 @@ is written into a clippings folder of its own and the shell receives its absolut
 - **Rich HTML becomes markdown** - only on the two surfaces that render it; a text file, a code cell
   and a terminal take the plain-text flavour, which is what a normal paste already gives them
 - **A terminal gets a clipping** - a file or image pasted into a terminal is written into the
-  clippings folder, `/tmp/jupyterlab-paste-clippings` by default, and the terminal receives the
+  clippings folder, `/tmp/paste-clippings` by default, and the terminal receives the
   absolute path to it, escaped for the shell, so it resolves wherever the shell has changed into;
   Claude Code and the other AI assistant terminals included
 - **Nothing is written twice** - an identical payload references the file already in the folder, and
@@ -44,7 +44,7 @@ The full behaviour of every content type on every surface is in
 ## Configuration
 
 The clippings folder is where a paste into a terminal writes. It defaults to
-`/tmp/jupyterlab-paste-clippings` and is set in `jupyter_server_config.py`:
+`/tmp/paste-clippings` and is set in `jupyter_server_config.py`:
 
 ```python
 c.PasteClippingsConfig.clippings_dir = "/srv/clippings"
@@ -55,8 +55,8 @@ the default sits in the temporary directory. To keep them, put the folder anywhe
 default name at it:
 
 ```bash
-mkdir -p ~/.cache/jupyterlab-paste-clippings
-ln -s ~/.cache/jupyterlab-paste-clippings /tmp/jupyterlab-paste-clippings
+mkdir -p ~/.cache/paste-clippings
+ln -s ~/.cache/paste-clippings /tmp/paste-clippings
 ```
 
 The symlink is followed, so clips land in the folder under your home directory and outlive the

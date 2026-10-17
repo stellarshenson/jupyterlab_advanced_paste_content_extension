@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.7] - 2026-10-17
+
+### Changed
+
+- The default clippings folder, where a file or image pasted into a terminal is written, is
+  `/tmp/paste-clippings` instead of `/tmp/jupyterlab-paste-clippings`. A folder set in
+  `c.PasteClippingsConfig.clippings_dir` is unaffected
+
+<!-- <END NEW CHANGELOG ENTRY> -->
+
 ## [1.0.6] - 2026-10-16
 
 ### Added
@@ -30,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The end-to-end tests no longer time out at start in a JupyterLab that opens a tab other than the
   Launcher
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## [1.0.3] - 2026-09-25
 

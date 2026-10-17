@@ -219,10 +219,11 @@ where a paste into a terminal is written and what path the shell receives
   - mechanism: 2026-10-16T04:27:29Z @kj _clippings_folder compares st_uid of the resolved directory against os.getuid and returns None on a mismatch, which falls through to the confined folder
   - log: 2026-10-16T04:27:29Z @kj added
   - log: 2026-10-16T04:27:52Z @kj closed
-- [x] `ACC-TERM-27` **Clippings folder is configurable** - MEDIUM; the clippings folder is read from PasteClippingsConfig.clippings_dir, defaulting to /tmp/jupyterlab-paste-clippings, so an operator can move it without a code change
+- [x] `ACC-TERM-27` **Clippings folder is configurable** - MEDIUM; the clippings folder is read from PasteClippingsConfig.clippings_dir, defaulting to /tmp/paste-clippings, so an operator can move it without a code change
   - evidence: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one passed against the non-default folder conftest sets in PasteClippingsConfig
   - test: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one passes against the folder conftest sets in PasteClippingsConfig, which is not the default, so the value is read from configuration
   - test-tags: UNIT
   - mechanism: 2026-10-16T04:27:29Z @kj a traitlets Configurable is instantiated with parent=server_app in _load_jupyter_server_extension and stored on web_app.settings
   - log: 2026-10-16T04:27:29Z @kj added
   - log: 2026-10-16T04:27:52Z @kj closed
+  - log: 2026-10-17T09:51:55Z @kj edited text "the clippings folder is read from PasteClippingsConfig.clippings_dir, defaulting to /tmp/jupyterlab-paste-clippings, so an operator can move it without a code change" -> "the clippings folder is read from PasteClippingsConfig.clippings_dir, defaulting to /tmp/paste-clippings, so an operator can move it without a code change"; reason: default renamed from /tmp/jupyterlab-paste-clippings to /tmp/paste-clippings at the Star Colonel's request

@@ -2,7 +2,7 @@
 
 Users can set options in their jupyter_server_config.py:
 
-    c.PasteClippingsConfig.clippings_dir = "/tmp/jupyterlab-paste-clippings"
+    c.PasteClippingsConfig.clippings_dir = "/tmp/paste-clippings"
 
 A paste into a terminal produces no document to anchor a reference to, so the
 file it writes is a clipping and lands in `clippings_dir` instead of the folder
@@ -13,8 +13,8 @@ The default sits under the system temporary directory because a clipping is
 clipboard-like: it is not meant to outlive the machine's uptime. To keep them,
 put the folder anywhere and point the default name at it:
 
-    mkdir -p ~/.cache/jupyterlab-paste-clippings
-    ln -s ~/.cache/jupyterlab-paste-clippings /tmp/jupyterlab-paste-clippings
+    mkdir -p ~/.cache/paste-clippings
+    ln -s ~/.cache/paste-clippings /tmp/paste-clippings
 
 The symlink is followed - the resolved directory is what gets written into - so
 the clips survive a reboot that clears the temporary directory.
@@ -29,9 +29,7 @@ from traitlets import Unicode
 from traitlets.config import Configurable
 
 #: Where a terminal paste lands when `clippings_dir` is left alone.
-DEFAULT_CLIPPINGS_DIR = os.path.join(
-    tempfile.gettempdir(), "jupyterlab-paste-clippings"
-)
+DEFAULT_CLIPPINGS_DIR = os.path.join(tempfile.gettempdir(), "paste-clippings")
 
 
 class PasteClippingsConfig(Configurable):
@@ -39,7 +37,7 @@ class PasteClippingsConfig(Configurable):
 
     Set in jupyter_server_config.py:
 
-        c.PasteClippingsConfig.clippings_dir = "/tmp/jupyterlab-paste-clippings"
+        c.PasteClippingsConfig.clippings_dir = "/tmp/paste-clippings"
     """
 
     clippings_dir = Unicode(
