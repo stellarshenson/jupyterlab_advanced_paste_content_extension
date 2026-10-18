@@ -50,8 +50,13 @@ def _find_identical(folder, data):
     return None
 
 
-def _write_new(folder, filename, data):
+def _write_new(folder, filename, data, mode):
     """Write data under filename, or under filename-N when that name is taken.
+
+    mode is the permission bits the file is created with. A clipping is
+    owner-only because it lands in a folder the documented keep recipe can
+    create in a shared cache; every other paste keeps the shared mode a
+    notebook reference needs.
 
     Creating with O_EXCL makes the name test and the create one operation, so
     there is no window between them and no dangling symlink to follow: a symlink
@@ -70,7 +75,7 @@ def _write_new(folder, filename, data):
     index = 0
     while True:
         try:
-            handle = os.open(os.path.join(folder, candidate), flags, 0o644)
+            handle = os.open(os.path.join(folder, candidate), flags, mode)
         except FileExistsError:
             index += 1
             candidate = f"{stem}-{index}{ext}"
@@ -116,7 +121,7 @@ def _clippings_folder(directory):
     return resolved
 
 
-def _store(folder, filename, data):
+def _store(folder, filename, data, mode):
     """Reference an identical file, or write a new one.
 
     Blocking: it stats and reads the folder, so it runs in an executor rather
@@ -126,7 +131,7 @@ def _store(folder, filename, data):
     existing = _find_identical(folder, data)
     if existing is not None:
         return existing, True
-    return _write_new(folder, filename, data), False
+    return _write_new(folder, filename, data, mode), False
 
 
 class WriteRouteHandler(APIHandler):
@@ -176,9 +181,14 @@ class WriteRouteHandler(APIHandler):
 
         # Without this the user reads "Unhandled error" and cannot tell which
         # folder refused the write, or why.
+        # A terminal paste is a clipping wherever it lands, so it is created
+        # owner-only even when the clippings folder was unavailable and the
+        # request's own folder is used instead. Every other paste keeps the
+        # shared mode a notebook reference needs.
+        mode = 0o600 if body.get("clippings") else 0o644
         try:
             written, reused = await IOLoop.current().run_in_executor(
-                None, _store, target_folder, filename, data
+                None, _store, target_folder, filename, data, mode
             )
         except OSError as error:
             # The folder actually attempted, which on a clipping is not the one

@@ -134,6 +134,13 @@ The paste listener, its handlers and what they do with the clipboard payload
   - root-cause: 2026-09-25T00:03:46Z @kj _terminal_cwd reads /proc/<pid>/cwd of the pty's first process; the process the user types into is the foreground process group, whose directory differs after a nested shell
   - log: 2026-09-25T00:03:46Z @kj added
   - log: 2026-09-25T00:12:32Z @kj closed
+- [x] `DEF-PASTE-35` **Terminal clips are created world-readable** - MAJOR; clipping writes create the file 0644, and the documented keep recipe created its folder 0755, so on a multi-user hub another user can read every clip. The write now uses 0600 for clippings and keeps 0644 for every other paste; the recipe sets the folder to 0700.
+  - evidence: pytest test_a_clipping_lands_in_the_clippings_folder_not_the_named_one passes: the written clip has mode & 0o077 == 0; test_the_default_clippings_folder_is_paste_files passes; make test green with 27 pytest and 90 jest
+  - repro: create the clippings folder 0755 as the old recipe did, paste a file into a terminal, stat -c %a the clip: 644 before, 600 after
+  - test-tags: UNIT
+  - root-cause: 2026-10-18T00:16:36Z @kj os.open used a fixed 0o644 for every write, and the keep recipe never tightened the folder
+  - log: 2026-10-18T00:16:36Z @kj added
+  - log: 2026-10-18T00:17:11Z @kj closed
 
 ## Write Route `WRITE`
 

@@ -249,9 +249,21 @@ async def test_a_clipping_lands_in_the_clippings_folder_not_the_named_one(
     )
 
     assert (clippings_dir / "a b.png").exists()
+    # Owner-only: the keep recipe can put the folder in a shared cache.
+    assert (clippings_dir / "a b.png").stat().st_mode & 0o077 == 0
     assert not (jp_root_dir / "browser" / "a b.png").exists()
     # Absolute, because a shell resolves it from whatever directory it is in.
     assert payload["terminal_path"] == str(clippings_dir / "a b.png")
+
+
+def test_the_default_clippings_folder_is_paste_files():
+    """An unconfigured server writes terminal pastes to /tmp/paste-files."""
+    import tempfile
+
+    from jupyterlab_advanced_paste_content_extension.config import PasteClippingsConfig
+
+    expected = os.path.join(tempfile.gettempdir(), "paste-files")
+    assert PasteClippingsConfig().clippings_dir == expected
 
 
 async def test_a_write_that_is_not_a_clipping_still_uses_the_named_folder(

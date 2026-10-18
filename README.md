@@ -30,13 +30,14 @@ is written into a clippings folder of its own and the shell receives its absolut
 - **Rich HTML becomes markdown** - only on the two surfaces that render it; a text file, a code cell
   and a terminal take the plain-text flavour, which is what a normal paste already gives them
 - **A terminal gets a clipping** - a file or image pasted into a terminal is written into the
-  clippings folder, `/tmp/paste-clippings` by default, and the terminal receives the
+  clippings folder, `/tmp/paste-files` by default, and the terminal receives the
   absolute path to it, escaped for the shell, so it resolves wherever the shell has changed into;
   Claude Code and the other AI assistant terminals included
 - **Nothing is written twice** - an identical payload references the file already in the folder, and
   a name clash never overwrites
 - **Server-side write** - the file is created through a Jupyter server endpoint, so it lands in the
-  server's workspace rather than the browser sandbox, and writes cannot escape the server root
+  server's workspace rather than the browser sandbox; a request-named folder cannot escape the
+  server root, and the server-chosen clippings folder is the deliberate exception
 
 The full behaviour of every content type on every surface is in
 [docs/design-content-types.md](docs/design-content-types.md).
@@ -44,7 +45,7 @@ The full behaviour of every content type on every surface is in
 ## Configuration
 
 The clippings folder is where a paste into a terminal writes. It defaults to
-`/tmp/paste-clippings` and is set in `jupyter_server_config.py`:
+`/tmp/paste-files` and is set in `jupyter_server_config.py`:
 
 ```python
 c.PasteClippingsConfig.clippings_dir = "/srv/clippings"
@@ -55,8 +56,8 @@ the default sits in the temporary directory. To keep them, put the folder anywhe
 default name at it:
 
 ```bash
-mkdir -p ~/.cache/paste-clippings
-ln -s ~/.cache/paste-clippings /tmp/paste-clippings
+mkdir -p ~/.cache/paste-files && chmod 700 ~/.cache/paste-files
+ln -s ~/.cache/paste-files /tmp/paste-files
 ```
 
 The symlink is followed, so clips land in the folder under your home directory and outlive the

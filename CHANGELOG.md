@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.8] - 2026-10-18
+
+### Changed
+
+- The default clippings folder, where a file or image pasted into a terminal is written, is
+  `/tmp/paste-files` instead of `/tmp/paste-clippings`. A folder set in
+  `c.PasteClippingsConfig.clippings_dir` is unaffected
+- A terminal paste is created owner-only (mode 600), because the documented keep recipe can place
+  the folder in a shared cache; pastes into notebooks and editors keep mode 644. The keep recipe
+  now sets the folder to mode 700
+
+### Fixed
+
+- The README claim that writes cannot escape the server root now names the server-chosen clippings
+  folder as the deliberate exception
+- The `referenceFor` doc comment no longer describes a shell working directory the server stopped
+  reading
+
+<!-- <END NEW CHANGELOG ENTRY> -->
+
 ## [1.0.7] - 2026-10-17
 
 ### Changed
@@ -14,8 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The default clippings folder, where a file or image pasted into a terminal is written, is
   `/tmp/paste-clippings` instead of `/tmp/jupyterlab-paste-clippings`. A folder set in
   `c.PasteClippingsConfig.clippings_dir` is unaffected
-
-<!-- <END NEW CHANGELOG ENTRY> -->
 
 ## [1.0.6] - 2026-10-16
 

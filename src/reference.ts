@@ -23,7 +23,8 @@ export function shellEscape(path: string): string {
  * Build the text inserted at the paste point for a file that was written.
  *
  * `path` is the file name, which resolves beside the document; on a terminal it
- * is the path the server computed from the shell's working directory.
+ * is the absolute path the server built in the clippings folder, or in the
+ * fallback folder when the clippings folder is unavailable.
  *
  * - markdown surfaces: `![](<name>)` for an image, `[name](<name>)` otherwise
  * - code cell: the name as a JSON string, so it drops into `plt.imread()`
