@@ -51,10 +51,10 @@ function toBase64(buffer: ArrayBuffer): string {
 }
 
 /**
- * Initialization data for the jupyterlab_advanced_paste_content_extension extension.
+ * Initialization data for the @stellarshenson/jupyterlab-advanced-paste-content-extension extension.
  */
 const plugin: JupyterFrontEndPlugin<void> = {
-  id: 'jupyterlab_advanced_paste_content_extension:plugin',
+  id: '@stellarshenson/jupyterlab-advanced-paste-content-extension:plugin',
   description:
     'Writes pasted content to disk and inserts a reference to it, choosing the handler by content type and the reference by receiving surface',
   autoStart: true,
