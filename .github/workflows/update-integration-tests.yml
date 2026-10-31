@@ -11,6 +11,7 @@ permissions:
 jobs:
   update-snapshots:
     runs-on: ubuntu-latest
+    # template-sync: keep
     # The author_association gate is load-bearing: issue_comment runs from the
     # default branch with a contents: write token, and this job checks out and
     # executes the pull request's own build script. Without it any GitHub user
@@ -23,7 +24,7 @@ jobs:
           || github.event.comment.author_association == 'COLLABORATOR')
 
     steps:
-      - uses: jupyterlab/maintainer-tools/.github/actions/update-snapshots-checkout@v1
+      - uses: jupyterlab/maintainer-tools/.github/actions/update-snapshots-checkout@v1 # template-sync: keep
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 

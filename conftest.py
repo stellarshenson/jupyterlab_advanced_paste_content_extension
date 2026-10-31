@@ -15,14 +15,13 @@ def clippings_dir(tmp_path_factory):
 
 
 @pytest.fixture
-def jp_server_config(jp_server_config, clippings_dir):
+def jp_server_config(jp_server_config, clippings_dir):  # template-sync: keep
     return {
         "ServerApp": {
-            "jpserver_extensions": {
-                "jupyterlab_advanced_paste_content_extension": True,
-            },
+            "jpserver_extensions": {"jupyterlab_advanced_paste_content_extension": True},
             # Test against a server which requires authentication on all endpoints
             "allow_unauthenticated_access": False,
         },
+        # template-sync: keep
         "PasteClippingsConfig": {"clippings_dir": str(clippings_dir)},
     }
