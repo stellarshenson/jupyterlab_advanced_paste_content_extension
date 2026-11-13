@@ -45,7 +45,7 @@ Inserted forms, for a written file named `paste-20260920-191530.png`:
 - **link** - `[report.pdf](<report.pdf>)`
 - **quoted filename** - `"paste-20260920-191530.png"`, so it drops straight into `plt.imread()` or `Image()`
 - **filename** - `paste-20260920-191530.png`, bare
-- **shell path** - the path from the shell's working directory to the file, backslash-escaped for the shell: `../shots/paste-20260920-191530.png`, or `docs/Q3\ report.pdf` for a name with a space
+- **shell path** - the absolute path of the file in the clippings folder, backslash-escaped for the shell: `/tmp/paste-files/paste-20260920-191530.png`, or `/tmp/paste-files/Q3\ report.pdf` for a name with a space
 
 The markdown destination is always wrapped in angle brackets. Without them a name carrying a space or a parenthesis renders as literal text rather than a link, and names from a file manager routinely carry both; the wrapped form renders identically for names that do not. The code-cell form is built by `JSON.stringify`, so a name carrying a quote stays a valid string. A pasted file whose type is an image gets the image link, not the ordinary link.
 
@@ -73,7 +73,7 @@ These do not vary by surface and are not repeated in the grid.
 - **Web images inside rich HTML** - `http(s)` sources are fetchable and can be written to disk with the links rewritten. Not yet specified
 - **Console prompt, settings editor** - not covered surfaces; the paste is left to JupyterLab
 - **Clippings do not survive a reboot** - the clippings folder defaults under the system temporary directory, because a clipping is clipboard-like and disposable. Keeping them is a choice the user makes rather than a default: a symlink from the default name to a folder under their home, which the server resolves and follows, so the clips outlive the temporary directory being cleared
-- **Word list structure** - Word writes lists as ordinary paragraphs with the bullet as literal text and no `<ul>` anywhere, and this converter does not rebuild them. Bold carried as CSS on a `<span>` is rebuilt
+- **Word list structure** - Word writes lists as ordinary paragraphs with the bullet as literal text and no `<ul>` anywhere; the converter rebuilds them as markdown list items, indented by level. Bold carried as CSS on a `<span>` is rebuilt
 - **Images the document cannot load** - an `<img>` whose source is not `http(s)`, which covers a `data:` blob and Word's `file:///` temp paths, keeps its alt text and loses the source rather than inlining a blob or emitting a dead link
 
 ## Relationship to jupyterlab_paste_content_as_markdown_extension

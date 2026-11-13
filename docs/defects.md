@@ -148,6 +148,12 @@ The paste listener, its handlers and what they do with the clipboard payload
   - root-cause: 2026-11-13T06:58:37Z @kj classify() tests files before text flavours and never checks that the lone bitmap comes with the text it pictures
   - log: 2026-11-13T06:58:37Z @kj added
   - log: 2026-11-13T07:01:27Z @kj closed
+- [x] `DEF-PASTE-38-DESIGN-DOC` **Design document contradicts the code on the terminal path and on Word lists** - MINOR; docs/design-content-types.md defined the shell path as relative to the shell's working directory and said Word lists are not rebuilt; the server answers the absolute clippings path and the converter rebuilds the lists
+  - evidence: docs/design-content-types.md: the shell path bullet states the absolute clippings path /tmp/paste-files/..., the Word list bullet states the lists are rebuilt as markdown list items
+  - repro: read docs/design-content-types.md, the shell path bullet and the Word list structure bullet, against routes.py terminal_path and src/markdown.ts wordListItem
+  - root-cause: 2026-11-13T07:29:32Z @kj the two sentences were not updated when terminal clippings (entry 13) and the Word list rules were added
+  - log: 2026-11-13T07:29:32Z @kj added
+  - log: 2026-11-13T07:29:40Z @kj closed
 
 ## Write Route `WRITE`
 
@@ -279,3 +285,9 @@ The Makefile, the GitHub workflows and the published artefacts
   - root-cause: 2026-11-13T07:09:46Z @kj paypal.com refuses requests from GitHub runners; the link opens in a browser
   - log: 2026-11-13T07:09:46Z @kj added
   - log: 2026-11-13T07:16:37Z @kj closed
+- [x] `DEF-BUILD-39-ROOT-SCREENSHOT` **A pasted screenshot is committed at the repository root** - MINOR; paste-20261014-092433.png is tracked at the repository root, referenced by nothing, and ships in the sdist
+  - evidence: paste-20261014-092433.png removed from the repository; git ls-files no longer lists it
+  - repro: git ls-files | grep paste-2026; git grep paste-20261014 finds no reference
+  - root-cause: 2026-11-13T07:29:33Z @kj a test paste written into the project folder was committed with other changes
+  - log: 2026-11-13T07:29:33Z @kj added
+  - log: 2026-11-13T07:29:40Z @kj closed
