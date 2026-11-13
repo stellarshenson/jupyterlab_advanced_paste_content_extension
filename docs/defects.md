@@ -273,7 +273,9 @@ The Makefile, the GitHub workflows and the published artefacts
   - root-cause: 2026-09-21T06:04:57Z @kj the badge template in ~/.claude/references/github-badges.md carries a pepy downloads badge whose URL only resolves after the first PyPI release; the same reference states the remedy, and both sibling extensions already carry it - ignore_links on the check-links action
   - log: 2026-09-21T06:04:57Z @kj added
   - log: 2026-09-21T06:29:38Z @kj closed
-- [ ] `DEF-BUILD-37-PAYPAL-LINK` **Check Links job fails on the donate badge** - MEDIUM; Check Links of the Build workflow fails with 403: Forbidden on https://www.paypal.com/donate/?hosted_button_id=B4KPBJDLLXTSA in README.md, so Build is red on every push
+- [x] `DEF-BUILD-37-PAYPAL-LINK` **Check Links job fails on the donate badge** - MEDIUM; Check Links of the Build workflow fails with 403: Forbidden on https://www.paypal.com/donate/?hosted_button_id=B4KPBJDLLXTSA in README.md, so Build is red on every push
+  - evidence: https://www.paypal.com/.* added to ignore_links in build.yml; Build run 43383765518 green at ec0fafb, Check Links included
   - repro: push to main; Build / Check Links fails on the PayPal link
   - root-cause: 2026-11-13T07:09:46Z @kj paypal.com refuses requests from GitHub runners; the link opens in a browser
   - log: 2026-11-13T07:09:46Z @kj added
+  - log: 2026-11-13T07:16:37Z @kj closed
