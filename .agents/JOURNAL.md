@@ -65,3 +65,6 @@ Never insert between existing entries. Use `/journal:archive` when exceeding 40 
 
 20. **Task - Build lifecycle brought to Makefile 1.48** (v1.0.13): the canonical Makefile went to every extension on 2026-11-02<br>
     **Result**: Makefile 1.48 verbatim; `mrproper` now removes tmp, logs, .venv, graphify-out, coverage and .pytest_cache; `install` and `publish` are `.NOTPARALLEL`; the cleaned tree carries the tag `CHECKPOINT_JUPYTERLAB_4.6.5_UPGRADE_PORTED_1.0.13`.
+
+21. **Task - Spreadsheet cells paste as text** (v1.0.14): audit of the whole source in the improve-44 campaign (`tmp/workflows/improve-44` in the workspace) found one defect a user meets in ordinary use<br>
+    **Result**: Excel puts a rendered picture of the copied cells on the clipboard beside `text/plain` and `text/html`. `classify()` in `src/content.ts` tested files first, so the lone `image.png` won and cells pasted into a cell, a text file or a terminal arrived as a PNG reference (`DEF-PASTE-36-SHEET-CELLS`). A single bitmap that comes with plain text, and with HTML holding no `<img>`, is now read as that text; the `<img>` test keeps a copied web image a bitmap, and a real image file keeps the file route. Added `ACC-ROUTE-28-SHEET-CELLS`, three cases in `content.spec.ts`, one line in `docs/design-content-types.md`. Jest 93, pytest 27, Galata 5 green.

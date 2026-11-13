@@ -43,23 +43,28 @@ function extensionFor(type: string): string {
 export function classify(data: DataTransfer): PasteContent | null {
   const files = Array.from(data.files || []);
   const image = files.find(file => file.type.startsWith('image/'));
+  const html = data.getData('text/html');
+  const text = data.getData('text/plain');
+
+  // Excel and other spreadsheets put a rendered picture of the copied cells on
+  // the clipboard beside their text. The text is what the user copied. A copied
+  // web image also carries HTML, but that HTML is the <img> itself.
+  const pictureOfText = text.trim() !== '' && !/<img\b/i.test(html);
 
   // A clipboard bitmap is always the only item. Requiring that keeps a real
   // file named image.png, pasted alongside others, from collapsing the whole
   // list to one payload and discarding the rest.
-  if (
+  const bitmap =
     files.length === 1 &&
     image &&
-    (SYNTHETIC_NAME.test(image.name) || image.name === '')
-  ) {
+    (SYNTHETIC_NAME.test(image.name) || image.name === '');
+  if (bitmap && !pictureOfText) {
     return { kind: 'bitmap', file: image, extension: extensionFor(image.type) };
   }
-  if (files.length > 0) {
+  if (files.length > 0 && !bitmap) {
     return { kind: 'file', files };
   }
 
-  const html = data.getData('text/html');
-  const text = data.getData('text/plain');
   if (html) {
     return { kind: 'html', html, text };
   }

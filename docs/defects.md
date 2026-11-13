@@ -141,6 +141,13 @@ The paste listener, its handlers and what they do with the clipboard payload
   - root-cause: 2026-10-18T00:16:36Z @kj os.open used a fixed 0o644 for every write, and the keep recipe never tightened the folder
   - log: 2026-10-18T00:16:36Z @kj added
   - log: 2026-10-18T00:17:11Z @kj closed
+- [x] `DEF-PASTE-36-SHEET-CELLS` **Spreadsheet cells paste as a picture** - MAJOR; Excel puts image/png beside text/plain and text/html; classify() takes the single image.png as a bitmap, so pasting cells into a cell, a text file or a terminal writes a PNG and inserts its reference; the cell text never arrives
+  - evidence: content.spec: image.png with an HTML table and text classifies as html, a copied web image stays a bitmap, a real image file with its path stays a file; Jest 93, pytest 27, Galata 5 green
+  - repro: copy cells in Excel, paste into a code cell: a quoted paste-*.png name appears, not the values
+  - test-tags: UNIT
+  - root-cause: 2026-11-13T06:58:37Z @kj classify() tests files before text flavours and never checks that the lone bitmap comes with the text it pictures
+  - log: 2026-11-13T06:58:37Z @kj added
+  - log: 2026-11-13T07:01:27Z @kj closed
 
 ## Write Route `WRITE`
 

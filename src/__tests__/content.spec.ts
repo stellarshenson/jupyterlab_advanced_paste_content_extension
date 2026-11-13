@@ -113,6 +113,39 @@ describe('classify', () => {
     expect(result?.kind === 'text' && result.text).toEqual('just text');
   });
 
+  it('reads spreadsheet cells as their text, not as the picture beside it', () => {
+    const result = classify(
+      transfer({
+        files: [imageFile('image.png')],
+        html: '<table><tr><td>1</td><td>2</td></tr></table>',
+        text: '1\t2'
+      })
+    );
+    expect(result?.kind).toEqual('html');
+    expect(result?.kind === 'html' && result.text).toEqual('1\t2');
+  });
+
+  it('still reads a copied web image as a bitmap', () => {
+    const result = classify(
+      transfer({
+        files: [imageFile('image.png')],
+        html: '<img src="https://example.org/a.png">',
+        text: 'https://example.org/a.png'
+      })
+    );
+    expect(result?.kind).toEqual('bitmap');
+  });
+
+  it('keeps a real image file whose clipboard also carries its path', () => {
+    const result = classify(
+      transfer({
+        files: [imageFile('diagram.png')],
+        text: '/home/u/diagram.png'
+      })
+    );
+    expect(result?.kind).toEqual('file');
+  });
+
   it('returns null for an empty clipboard', () => {
     expect(classify(transfer({}))).toBeNull();
   });

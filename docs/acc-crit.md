@@ -49,6 +49,12 @@ Which conversion a pasted payload gets, decided by whether the receiving surface
   - test-tags: FUNCTIONAL
   - log: 2026-09-20T17:20:04Z @kj added
   - log: 2026-09-20T17:34:32Z @kj closed: plain text is never intercepted
+- [x] `ACC-ROUTE-28-SHEET-CELLS` **Spreadsheet cells arrive as text** - HIGH; a single clipboard bitmap that comes with plain text, and with HTML holding no img, is handled as that text: markdown on the two markdown surfaces, plain text elsewhere; no file is written
+  - evidence: content.spec 'reads spreadsheet cells as their text, not as the picture beside it' and 'still reads a copied web image as a bitmap'; Jest 93 green
+  - test: classify() with files [image.png], an HTML table and text returns kind html; with HTML holding an img it returns bitmap
+  - test-tags: UNIT
+  - log: 2026-11-13T06:58:39Z @kj added
+  - log: 2026-11-13T07:01:29Z @kj closed
 
 ## Image Handling `IMAGE`
 

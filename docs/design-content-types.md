@@ -61,6 +61,7 @@ These do not vary by surface and are not repeated in the grid.
 - **File references keep their own name** - the name is real information and is preserved
 - **Every pasted file is written** - a paste carrying several files writes all of them; the references are separated by a blank line where the surface renders markdown and by a space elsewhere, because a newline in a terminal would run the line. A single newline is not enough - markdown joins those into one paragraph
 - **A clipboard bitmap is always a single item** - that is how it is told apart from a real file named `image.png`; a paste carrying several files is never read as a bitmap
+- **A picture of copied text is not a bitmap** - a spreadsheet puts a rendered picture of the copied cells on the clipboard beside their text; a single bitmap arriving with plain text, and with HTML that holds no `<img>`, is read as that text
 - **Identical content is not written twice** - the payload is hashed before writing; a byte-identical file already in the folder is referenced instead. The scan gives up in a folder holding more than 2000 entries, where it would cost more than the duplicate it saves
 - **A taken name never overwrites** - dedup already absorbed the identical case, so a surviving clash means different bytes; the payload is written as `<stem>-1.<ext>`, then `-2`
 - **Payloads over 32 MB are refused** - measured, 200 MB is a fatal out-of-memory in the browser's own conversion; the paste is left to the browser and the reason is shown
