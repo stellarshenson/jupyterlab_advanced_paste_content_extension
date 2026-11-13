@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.16] - 2026-11-13
+
+### Changed
+
+- Correct the design document and remove a stray screenshot
+- Close the Check Links defect and extend the journal entry
+- Skip the PayPal donate link in Check Links
+
+### Fixed
+
+- Paste spreadsheet cells as text, not as the picture beside them
+
 ## [1.0.13] - 2026-10-31
 
 ### Changed
